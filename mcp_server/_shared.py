@@ -1,0 +1,113 @@
+"""Shared MCP server primitives: the FastMCP instance, connection helper,
+error sanitisation, and the ``@tool_errors`` decorator.
+
+Tool modules under ``mcp_server/tools/`` import ``mcp`` from here and register
+their ``@mcp.tool()`` functions onto it. ``mcp_server/server.py`` then imports
+those modules and runs the server.
+
+Keep ``Optional[X]`` (never PEP 604 ``X | None``) in any FastMCP-reflected
+tool signature — on older mcp/pydantic the union eval'd to ``types.UnionType``
+crashes FastMCP's ``issubclass`` check.
+"""
+
+import functools
+import logging
+import os
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any, Optional
+
+from mcp.server.fastmcp import FastMCP
+
+from compliance_aiops.config import AppConfig, load_config
+from compliance_aiops.connection import AuditReader, ComplianceError, get_reader
+from compliance_aiops.governance import sanitize
+
+logger = logging.getLogger(__name__)
+
+_DOCTOR_HINT = "Run 'compliance-aiops doctor' to check audit sources."
+
+
+def _safe_error(exc: Exception, tool: str) -> str:
+    """Return an agent-safe error string; log full detail server-side only."""
+    logger.error("Tool %s failed", tool, exc_info=True)
+    _passthrough = (
+        ValueError,
+        FileNotFoundError,
+        KeyError,
+        PermissionError,
+        TimeoutError,
+        ConnectionError,
+        ComplianceError,
+    )
+    if isinstance(exc, _passthrough):
+        return sanitize(str(exc), 300)
+    return f"{type(exc).__name__}: operation failed."
+
+
+def tool_errors(shape: str = "dict") -> Callable:
+    """Wrap a tool body in the canonical try/except → ``_safe_error`` pattern.
+
+    Place this *between* ``@governed_tool`` and the function so the audit
+    decorator and FastMCP still see the original signature.
+    """
+
+    def decorator(func: Callable) -> Callable:
+        name = func.__name__
+
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:  # noqa: BLE001 — sanitised below
+                msg = _safe_error(e, name)
+                if shape == "list":
+                    return [{"error": msg, "hint": _DOCTOR_HINT}]
+                if shape == "str":
+                    return f"Error: {msg} {_DOCTOR_HINT}"
+                return {"error": msg, "hint": _DOCTOR_HINT}
+
+        return wrapper
+
+    return decorator
+
+
+mcp = FastMCP(
+    "compliance-aiops",
+    instructions=(
+        "Compliance evidence operations (preview): reads the local audit trails "
+        "the sibling AIops tools already write (~/.<tool>-aiops/audit.db) and turns "
+        "them into framework-mapped, hash-chain-sealed evidence. Query audit events "
+        "across tools; map coverage / per-control evidence / gaps for HIPAA, "
+        "PCI-DSS, SOC 2, and GDPR; produce the approval trail and exceptions "
+        "reports; verify hash-chain integrity; and generate/sign/export sealed "
+        "evidence bundles. It NEVER touches external infrastructure — it only reads "
+        "audit DBs and writes local artifacts (all low risk). Every tool still runs "
+        "through the compliance-aiops governance harness (audit / budget / risk-tier)."
+    ),
+)
+
+_config: Optional[AppConfig] = None
+_reader: Optional[AuditReader] = None
+
+
+def _load() -> AppConfig:
+    config_path_str = os.environ.get("COMPLIANCE_AIOPS_CONFIG")
+    config_path = Path(config_path_str) if config_path_str else None
+    return load_config(config_path)
+
+
+def _get_config() -> AppConfig:
+    """Return the app config, lazily loaded (auto-discovers sibling audit DBs)."""
+    global _config  # noqa: PLW0603
+    if _config is None:
+        _config = _load()
+    return _config
+
+
+def _get_reader() -> AuditReader:
+    """Return the audit reader over all configured/discovered sources."""
+    global _reader  # noqa: PLW0603
+    if _reader is None:
+        _reader = get_reader(_get_config())
+    return _reader
