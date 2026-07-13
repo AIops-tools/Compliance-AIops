@@ -131,6 +131,7 @@ Use `verify_source_chain` (MCP) on a source: it returns the chain head and flags
   `COMPLIANCE_AIOPS_HOME`).
 - The source audit trails are opened **read-only**; the tool never mutates them.
   The only files written are bundles under `~/.compliance-aiops/bundles/`.
+- **Secure by default (v0.2.0+)**: with no `~/.compliance-aiops/rules.yaml`, high/critical operations are denied unless `COMPLIANCE_AUDIT_APPROVED_BY` names an approver (set `COMPLIANCE_AUDIT_RATIONALE` too). `compliance-aiops init` seeds a starter rules.yaml; an operator-authored rules file is honoured as-is.
 - **Tamper-EVIDENT, not tamper-PROOF** — the source `audit.db` remains the system
   of record.
 
