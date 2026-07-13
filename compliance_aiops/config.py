@@ -23,7 +23,9 @@ from pathlib import Path
 
 import yaml
 
-CONFIG_DIR = Path.home() / ".compliance-aiops"
+from compliance_aiops.governance.paths import ops_home
+
+CONFIG_DIR = ops_home()
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 ENV_FILE = CONFIG_DIR / ".env"
 
