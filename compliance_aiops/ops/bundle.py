@@ -114,10 +114,36 @@ def generate_evidence_bundle(
             "controlsTotal": coverage["controlsTotal"]}
 
 
+def _confine_out(requested: str, base: Path, hint: str) -> Path:
+    """Resolve ``requested`` and require it to stay inside ``base``.
+
+    Path confinement for agent-supplied output paths: a bare relative filename
+    lands inside ``base``; anything resolving outside it (``../`` escapes,
+    absolute paths elsewhere) raises a teaching ``ValueError``.
+    """
+    base_resolved = base.expanduser().resolve()
+    candidate = Path(requested).expanduser()
+    if not candidate.is_absolute():
+        candidate = base_resolved / candidate
+    resolved = candidate.resolve()
+    if not resolved.is_relative_to(base_resolved):
+        raise ValueError(
+            f"out_path '{requested}' resolves outside the allowed output "
+            f"directory {base_resolved}. {hint}"
+        )
+    return resolved
+
+
 def _resolve_out(config: AppConfig, framework: str, generated_at: str,
                  out_path: str | None) -> Path:
     if out_path:
-        return Path(out_path).expanduser()
+        return _confine_out(
+            out_path,
+            config.bundle_dir,
+            "Evidence bundles may only be written inside the configured bundle "
+            "directory — pass a bare filename (it lands there) or a path under "
+            "it, or change bundle_dir in config.yaml to relocate it.",
+        )
     stamp = generated_at.replace(":", "").replace("-", "").split(".")[0]
     return config.bundle_dir / f"{framework.lower()}-{stamp}.json"
 
@@ -152,7 +178,15 @@ def export_bundle(bundle_path: str, fmt: str = "markdown", out_path: str | None 
         text, ext = json.dumps(bundle, ensure_ascii=False, indent=2), "json"
     else:
         raise ValueError(f"Unknown format '{fmt}'. Choose markdown, csv, or json.")
-    out = Path(out_path).expanduser() if out_path else path.with_suffix(f".{ext}")
+    if out_path:
+        out = _confine_out(
+            out_path,
+            path.parent,
+            "Exports may only be written alongside the source bundle — pass a "
+            "bare filename or a path inside the bundle's own directory.",
+        )
+    else:
+        out = path.with_suffix(f".{ext}")
     out.write_text(text, "utf-8")
     return {"action": "export_bundle", "format": fmt, "outPath": str(out)}
 

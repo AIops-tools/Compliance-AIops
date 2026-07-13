@@ -48,7 +48,7 @@ def cli_errors(fn: Callable) -> Callable:
     return wrapper
 
 
-def get_reader(config_path: Path | None = None):
+def get_reader(config_path: Path | None = None) -> tuple[Any, Any]:
     """Return an (AuditReader, config) tuple over the configured audit sources."""
     from compliance_aiops.config import load_config
     from compliance_aiops.connection import get_reader as _build

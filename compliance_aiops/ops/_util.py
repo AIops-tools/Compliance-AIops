@@ -3,7 +3,7 @@
 Normalises raw ``audit_log`` rows into a stable evidence shape and sanitises all
 audit-sourced text (tool names, rationale, approver) before it reaches the agent
 or a bundle — the audit trail is data produced by other tools, so treat it as
-untrusted per the prompt-injection defense.
+untrusted and pass it through the output-hygiene sanitizer.
 """
 
 from __future__ import annotations
