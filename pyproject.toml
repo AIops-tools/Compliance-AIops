@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "compliance-aiops"
-version = "0.2.0"
+version = "0.2.1"
 description = "Governed compliance-evidence tooling: reads the AIops governance audit trails and produces framework-mapped (HIPAA/PCI-DSS/SOC2/GDPR), hash-chain-sealed evidence bundles with a built-in governance harness (audit, budget, risk tiers)"
 readme = "README.md"
 license = "MIT"
