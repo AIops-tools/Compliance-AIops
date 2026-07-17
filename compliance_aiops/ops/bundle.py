@@ -16,18 +16,45 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import UTC, datetime
+import re
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from compliance_aiops import __version__, hashchain
+from compliance_aiops import __version__, frameworks, hashchain
 from compliance_aiops.config import AppConfig
 from compliance_aiops.ops import controls as controls_ops
 from compliance_aiops.ops import reports as reports_ops
 from compliance_aiops.ops._util import norm_event, s
+from compliance_aiops.secretstore import MASTER_PASSWORD_ENV
 
 _SCHEMA_VERSION = 1
 _SIGNING_KEY_NAME = "signing-key"
+
+# Convenience relative windows for `--period`: "<n><unit>" with unit d/h/w, or the
+# spelled-out "last-7-days" style. Resolves to (since, until) ISO strings ending now.
+_PERIOD_RE = re.compile(r"^(?:last-)?(\d+)-?(day|days|d|hour|hours|h|week|weeks|w)s?$")
+_UNIT_HOURS = {"d": 24, "day": 24, "h": 1, "hour": 1, "w": 168, "week": 168}
+
+
+def resolve_period(period: str | None) -> tuple[str | None, str | None]:
+    """Turn a relative window like ``7d`` / ``last-7-days`` into (since, until) ISO.
+
+    Returns ``(None, None)`` for a falsy ``period`` (the whole trail). Raises
+    ``ValueError`` on an unparseable spec so the caller fails fast.
+    """
+    if not period:
+        return None, None
+    m = _PERIOD_RE.match(period.strip().lower())
+    if not m:
+        raise ValueError(
+            f"Unparseable --period '{period}'. Use forms like '7d', '24h', "
+            f"'2w', or 'last-7-days'."
+        )
+    qty, unit = int(m.group(1)), m.group(2).rstrip("s")
+    until = datetime.now(tz=UTC)
+    since = until - timedelta(hours=qty * _UNIT_HOURS[unit])
+    return since.isoformat(), until.isoformat()
 
 
 def _ordered_events(reader: Any, since: str | None, until: str | None) -> list[dict]:
@@ -64,9 +91,15 @@ def _signing_key() -> str | None:
 def generate_evidence_bundle(
     reader: Any, config: AppConfig, framework: str,
     period_start: str | None = None, period_end: str | None = None,
-    out_path: str | None = None, sign: bool = False,
+    out_path: str | None = None, sign: bool = False, period: str | None = None,
 ) -> dict:
-    """[WRITE][low] Assemble + seal an evidence bundle for a framework/period."""
+    """[WRITE][low] Assemble + seal an evidence bundle for a framework/period.
+
+    ``period`` is a convenience relative window (e.g. ``7d`` / ``last-7-days``)
+    used only when explicit ``period_start`` / ``period_end`` are not supplied.
+    """
+    if period and not (period_start or period_end):
+        period_start, period_end = resolve_period(period)
     coverage = controls_ops.coverage_summary(reader, framework, period_start, period_end)
     approval = reports_ops.approval_report(reader, period_start, period_end)
     exceptions = reports_ops.exceptions_report(reader, period_start, period_end)
@@ -230,6 +263,53 @@ def _to_csv(bundle: dict) -> str:
         rows.append(f"{c['controlId']},{c['title']},{c['strength']},"
                     f"{c['evidenceCount']},{c['covered']},{gap}")
     return "\n".join(rows)
+
+
+_DEFAULT_CRON = "0 2 * * 1"  # 02:00 every Monday
+
+
+def bundle_schedule_hint(
+    framework: str, cron: str = _DEFAULT_CRON, period: str = "7d", sign: bool = False,
+) -> dict:
+    """[READ] Ready-to-paste cron line + non-interactive command for periodic sealing.
+
+    Writes NOTHING and starts no daemon — it only composes (and validates) the
+    crontab line and the exact ``compliance-aiops bundle generate`` invocation an
+    operator can schedule themselves. The cron expression must be a standard
+    5-field spec; the framework must be a known one.
+    """
+    frameworks.controls_for(framework)  # fail fast on an unknown framework
+    fields = cron.split()
+    if len(fields) != 5:
+        raise ValueError(
+            f"cron '{cron}' must be a standard 5-field expression "
+            f"(minute hour day-of-month month day-of-week), got {len(fields)} field(s)."
+        )
+    resolve_period(period)  # fail fast on an unparseable window
+    fw = framework.lower()
+    command = (
+        f"compliance-aiops bundle generate {fw} --period {period}"
+        + (" --sign" if sign else "")
+    )
+    cron_line = f"{cron} {command}"
+    return {
+        "action": "bundle_schedule_hint",
+        "writesNothing": True,
+        "framework": fw,
+        "cron": cron,
+        "period": period,
+        "signed": sign,
+        "command": command,
+        "cronLine": cron_line,
+        "masterPasswordEnv": MASTER_PASSWORD_ENV,
+        "note": (
+            "This tool writes nothing and runs no daemon. Add cronLine to your "
+            "crontab (crontab -e) to seal a bundle on a schedule. Export "
+            f"{MASTER_PASSWORD_ENV} in the cron job's environment so a stored "
+            "signing key unlocks non-interactively — do NOT inline the real "
+            "password in the crontab file."
+        ),
+    }
 
 
 def list_bundles(config: AppConfig) -> list[dict]:

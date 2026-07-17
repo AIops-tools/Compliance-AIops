@@ -27,11 +27,13 @@ compliance-aiops report exceptions                 # denied / error / budget_exc
 ## Bundles (evidence artifacts)
 
 ```bash
-compliance-aiops bundle generate <framework> [--since <iso>] [--until <iso>] [--sign]
+compliance-aiops bundle generate <framework> [--since <iso>] [--until <iso>] [--period <7d|24h|2w|last-7-days>] [--sign]
                                                    # hash-chain-sealed bundle → ~/.compliance-aiops/bundles/
 compliance-aiops bundle verify <path>              # re-verify chain + seal head (+ signature)
 compliance-aiops bundle list                       # list generated bundles
 compliance-aiops bundle export <path> --format <markdown|csv|json>
+compliance-aiops bundle schedule <framework> [--cron "0 2 * * 1"] [--period 7d] [--sign]
+                                                   # print a ready-to-paste cron line; WRITES NOTHING, no daemon
 ```
 
 ## Secrets (optional bundle-signing key, encrypted ~/.compliance-aiops/secrets.enc)
@@ -48,10 +50,14 @@ compliance-aiops secret rotate-password               # re-encrypt under a new m
 
 ## Notes
 
-- `<framework>` is one of `hipaa`, `pci_dss`, `soc2`, `gdpr`.
+- `<framework>` is one of `hipaa`, `pci_dss`, `soc2`, `gdpr`, `iso27001`, `djcp_l3`.
 - `--since` / `--until` bound the evidence period (ISO-8601). The hash chain is
   over evidence records only, so the same `(framework, period, sources)`
   reproduces the same `chainHead`.
+- `--period` is a convenience relative window (`7d` / `24h` / `2w` /
+  `last-7-days`) resolved to a since/until pair ending "now"; used only when
+  `--since` / `--until` are not given. `bundle schedule` prints a cron line for
+  running that periodically — it starts no daemon and writes nothing.
 - `--sign` requires a stored signing key; unlock non-interactively by exporting
   `COMPLIANCE_AIOPS_MASTER_PASSWORD`.
 - Bundles are the only files written (under `~/.compliance-aiops/bundles/`); the

@@ -11,6 +11,7 @@ from compliance_aiops.cli.init import init_cmd
 from compliance_aiops.cli.overview import overview_cmd
 from compliance_aiops.cli.report import report_app
 from compliance_aiops.cli.secret import secret_app
+from compliance_aiops.cli.undo import undo_app
 
 app = typer.Typer(
     name="compliance-aiops",
@@ -22,6 +23,7 @@ app = typer.Typer(
 app.add_typer(report_app, name="report")
 app.add_typer(bundle_app, name="bundle")
 app.add_typer(secret_app, name="secret")
+app.add_typer(undo_app, name="undo")
 app.command("init")(init_cmd)
 app.command("overview")(overview_cmd)
 app.command("doctor")(doctor_cmd)

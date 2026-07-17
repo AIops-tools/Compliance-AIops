@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.0 — 2026-07-17
+
+### Added
+- **New:** ISO/IEC 27001:2022 + 等保2.0 (DJCP L3) framework mappings + bundle scheduling hints.
+- **Undo executor**: `undo list` / `undo apply <id>` (CLI + MCP) — apply a recorded replayable inverse; the dispatched inverse is re-gated by its own risk tier; single-use, dry-run, double-confirm, both wrapper + inverse audited.
+
 ## v0.2.1 — 2026-07-16
 
 ### Fixed

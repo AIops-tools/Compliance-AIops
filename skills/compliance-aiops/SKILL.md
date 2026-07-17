@@ -8,7 +8,7 @@ description: >
 installer:
   kind: uv
   package: compliance-aiops
-argument-hint: "[framework (hipaa|pci_dss|soc2|gdpr) or describe your evidence task]"
+argument-hint: "[framework (hipaa|pci_dss|soc2|gdpr|iso27001|djcp_l3) or describe your evidence task]"
 allowed-tools:
   - Bash
 metadata: {"openclaw":{"requires":{"env":["COMPLIANCE_AIOPS_CONFIG"],"bins":["compliance-aiops"],"config":["~/.compliance-aiops/config.yaml"]},"optional":{"env":["COMPLIANCE_AIOPS_MASTER_PASSWORD"],"config":["~/.compliance-aiops/secrets.enc"]},"primaryEnv":"COMPLIANCE_AIOPS_CONFIG","homepage":"https://github.com/AIops-tools/Compliance-AIops","emoji":"📋","os":["macos","linux"]}}
@@ -46,7 +46,7 @@ platform.
 | **Audit reads** | `list_audit_sources`, `query_audit_events`, `activity_timeline` | 3 | read |
 | **Framework mapping** | `list_frameworks`, `coverage_summary`, `control_evidence`, `gap_analysis` | 4 | read |
 | **Assurance reports** | `approval_report`, `exceptions_report` | 2 | read |
-| **Integrity** | `verify_source_chain`, `verify_bundle`, `list_bundles` | 3 | read |
+| **Integrity** | `verify_source_chain`, `verify_bundle`, `list_bundles`, `bundle_schedule_hint` | 4 | read |
 | **Artifacts** | `generate_evidence_bundle` (low), `export_bundle` (low), `sign_bundle` (medium) | 3 | write (no external mutation) |
 
 ## Frameworks & sample controls
@@ -57,6 +57,8 @@ platform.
 | **PCI-DSS v4.0** | 10.2 Audit log content (strong), 10.3 Protect audit logs (strong), 7-8 Least privilege / authn (partial) |
 | **SOC 2 TSC** | CC6.1 Logical access (strong), CC7.2 Monitoring (strong), CC8.1 Change management (strong) |
 | **GDPR** | Art.30 Records of processing (partial), Art.32 Security of processing (strong) |
+| **ISO/IEC 27001:2022** (Annex A) | A.5.15 Access control (strong), A.5.16 Identity mgmt (strong), A.5.18 Access rights (partial), A.8.2 Privileged access (partial), A.8.15 Logging (strong), A.8.16 Monitoring (strong), A.8.32 Change management (strong) |
+| **等保2.0 (DJCP L3)** GB/T 22239-2019 三级 | 8.1.5.4 安全审计 (strong), 8.1.4.2 访问控制 (partial), 8.1.5 安全管理中心/集中审计 (strong) |
 
 Audit trails prove *operating effectiveness* strongly but *control design /
 configuration* only partially — each control is labelled `strong` or `partial`,
@@ -124,6 +126,20 @@ other AIops-tools.
 
 Use `verify_source_chain` (MCP) on a source: it returns the chain head and flags
 **row-id gaps** — a sign that rows were deleted from that `audit.db`.
+
+### 定期封存 — schedule periodic sealed bundles (no daemon)
+
+This tool ships **no scheduler**; it emits a cron line for you to install:
+
+1. `compliance-aiops bundle schedule soc2 --cron "0 2 * * 1" --period 7d --sign`
+   (or the `bundle_schedule_hint` MCP tool) → returns a `cronLine` + the exact
+   non-interactive command. **It writes nothing.**
+2. Paste the `cronLine` into `crontab -e`, e.g.
+   `0 2 * * 1 compliance-aiops bundle generate soc2 --period 7d --sign`.
+3. `--period` (`7d` / `24h` / `2w` / `last-7-days`, also on `bundle generate`)
+   seals the trailing window each run. Export `COMPLIANCE_AIOPS_MASTER_PASSWORD`
+   in the cron environment so the signing key unlocks non-interactively — never
+   inline the real password in the crontab.
 
 ## Governance & Safety
 

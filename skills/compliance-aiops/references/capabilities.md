@@ -19,7 +19,7 @@
 
 | Tool | Inputs | Returns |
 |------|--------|---------|
-| `list_frameworks` | — | frameworks + control counts (`hipaa`, `pci_dss`, `soc2`, `gdpr`) |
+| `list_frameworks` | — | frameworks + control counts (`hipaa`, `pci_dss`, `soc2`, `gdpr`, `iso27001`, `djcp_l3`) |
 | `coverage_summary` | `framework`, `since?`, `until?` | per-control `covered`/`weak`/`uncovered`, evidence counts, strength labels |
 | `control_evidence` | `framework`, `control_id`, `since?`, `until?`, `sample_size=20` | evidence rows + population size + the reproducible query for ONE control |
 | `gap_analysis` | `framework`, `since?`, `until?` | controls with no/weak evidence + honest `strong`/`partial` caveat + remediation hint |
@@ -38,12 +38,13 @@
 | `verify_source_chain` | `source`, `since?`, `until?` | chain head + row-id gap detection (flags deletions) for one source |
 | `verify_bundle` | `bundle_path` | verifies chain + seal head + optional signature; `ok` + any mismatch detail |
 | `list_bundles` | — | bundles under `~/.compliance-aiops/bundles/` |
+| `bundle_schedule_hint` | `framework`, `cron="0 2 * * 1"`, `period="7d"`, `sign=False` | ready-to-paste 5-field cron line + non-interactive command for periodic sealing; **writes nothing, no daemon** |
 
 ## Write / artifact tools (3 — no external mutation)
 
 | Tool | Risk | Inputs | Returns / effect |
 |------|:---:|--------|------------------|
-| `generate_evidence_bundle` | **low** | `framework`, `period_start?`, `period_end?`, `out_path?`, `sign=False` | one call: coverage + approval trail + exceptions + sealed records → a bundle `.json` under `~/.compliance-aiops/bundles/`; returns path + `chainHead` |
+| `generate_evidence_bundle` | **low** | `framework`, `period_start?`, `period_end?`, `out_path?`, `sign=False`, `period?` (relative window e.g. `7d`) | one call: coverage + approval trail + exceptions + sealed records → a bundle `.json` under `~/.compliance-aiops/bundles/`; returns path + `chainHead` |
 | `export_bundle` | **low** | `bundle_path`, `fmt="markdown"` (`markdown`\|`csv`\|`json`), `out_path?` | renders a bundle to the chosen format |
 | `sign_bundle` | **medium** | `bundle_path` | adds an HMAC signature over the seal using the stored signing key |
 

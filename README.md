@@ -43,9 +43,9 @@ easiest-to-self-test tool in the line — fully offline and deterministic.
   governance-harness `AuditEngine`, a golden reproducible `chainHead` is
   asserted, and tamper tests confirm detection. No live infrastructure needed.
 
-## Tools (15 MCP tools)
+## Tools (16 MCP tools)
 
-### Read / analysis (12)
+### Read / analysis (13)
 
 | Tool | Purpose |
 |------|---------|
@@ -61,6 +61,7 @@ easiest-to-self-test tool in the line — fully offline and deterministic.
 | `verify_source_chain` | Chain head + row-id gap detection for one source |
 | `verify_bundle` | Verify a sealed bundle: chain + seal head + optional signature |
 | `list_bundles` | Bundles under `~/.compliance-aiops/bundles/` |
+| `bundle_schedule_hint` | Ready-to-paste cron line + non-interactive command for periodic sealing (writes nothing) |
 
 ### Write / artifact (3 — no external mutation)
 
@@ -80,6 +81,8 @@ The CLI exposes a convenience subset; the full 15-tool surface is available over
 | **PCI-DSS v4.0** | 10.2 Audit log content (strong), 10.3 Protect audit logs (strong), 7-8 Least privilege / authn (partial) |
 | **SOC 2 TSC** | CC6.1 Logical access (strong), CC7.2 Monitoring (strong), CC8.1 Change management (strong) |
 | **GDPR** | Art.30 Records of processing (partial), Art.32 Security of processing (strong) |
+| **ISO/IEC 27001:2022** (Annex A) | A.5.15 Access control (strong), A.5.16 Identity mgmt (strong), A.5.18 Access rights (partial), A.8.2 Privileged access (partial), A.8.15 Logging (strong), A.8.16 Monitoring (strong), A.8.32 Change management (strong) |
+| **等保2.0 (DJCP L3)** (GB/T 22239-2019 三级) | 8.1.5.4 安全审计 (strong), 8.1.4.2 访问控制 (partial), 8.1.5 安全管理中心/集中审计 (strong) |
 
 ## Install
 
@@ -105,6 +108,30 @@ export COMPLIANCE_AIOPS_MASTER_PASSWORD=...   # only needed to unlock a signing 
 compliance-aiops mcp                          # or: compliance-aiops-mcp
 ```
 
+## 定期封存 (scheduled sealing)
+
+Evidence bundles are most useful when sealed on a **cadence** (e.g. weekly), so
+each period has a tamper-evident anchor. This tool ships **no daemon** — instead
+`bundle schedule` prints a ready-to-paste cron line plus the exact non-interactive
+command, and writes nothing:
+
+```bash
+compliance-aiops bundle schedule soc2 --cron "0 2 * * 1" --period 7d --sign
+```
+
+It returns a `cronLine` you paste into `crontab -e`, for example:
+
+```cron
+0 2 * * 1 compliance-aiops bundle generate soc2 --period 7d --sign
+```
+
+- `--period` (also available on `bundle generate`) is a convenience relative
+  window — `7d`, `24h`, `2w`, or `last-7-days` — resolved to a since/until pair
+  ending "now", so each scheduled run seals the trailing window.
+- Export `COMPLIANCE_AIOPS_MASTER_PASSWORD` **in the cron job's environment** so a
+  stored signing key unlocks non-interactively. Do **not** inline the real
+  password in the crontab file — reference it from a protected env file.
+
 ## Integrity & honest limits
 
 - **Tamper-EVIDENT, not tamper-PROOF.** The hash chain and optional signature
@@ -121,7 +148,7 @@ compliance-aiops mcp                          # or: compliance-aiops-mcp
 
 - **Evidence, not certification.** This produces auditor-ready evidence bundles;
   it does not issue attestations, opinions, or certifications.
-- **In scope:** the four frameworks above, over the `audit_log` trails written by
+- **In scope:** the six frameworks above, over the `audit_log` trails written by
   governed AIops tools discovered via `~/.*-aiops/audit.db`.
 - **Not in scope:** it does **not** scan infrastructure, connect to any platform,
   or replace a GRC platform. For platform operations use the other AIops-tools.

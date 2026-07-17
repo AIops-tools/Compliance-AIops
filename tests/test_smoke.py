@@ -10,6 +10,7 @@ that assert ``verify_bundle`` catches a modified evidence row.
 
 import importlib
 import json
+import re
 import sqlite3
 
 import pytest
@@ -21,6 +22,7 @@ EXPECTED_TOOLS = {
     "approval_report", "exceptions_report",
     "verify_source_chain", "verify_bundle",
     "generate_evidence_bundle", "sign_bundle", "export_bundle", "list_bundles",
+    "bundle_schedule_hint",
 }
 
 
@@ -125,6 +127,7 @@ def test_cli_leaf_help():
         ["doctor", "--help"], ["overview", "--help"], ["init", "--help"],
         ["report", "coverage", "--help"], ["report", "gaps", "--help"],
         ["bundle", "generate", "--help"], ["bundle", "verify", "--help"],
+        ["bundle", "schedule", "--help"],
     ):
         result = runner.invoke(app, cmd)
         assert result.exit_code == 0, f"{cmd} failed: {result.output}"
@@ -198,7 +201,9 @@ def test_control_evidence_and_frameworks(audit_db):
     reader = _reader(audit_db)
     ev = ops.control_evidence(reader, "pci_dss", "10.2")
     assert ev["populationSize"] == len(_ROWS)  # audit_trail selector = all events
-    assert {f["framework"] for f in ops.list_frameworks()} == {"hipaa", "pci_dss", "soc2", "gdpr"}
+    assert {f["framework"] for f in ops.list_frameworks()} == {
+        "hipaa", "pci_dss", "soc2", "gdpr", "iso27001", "djcp_l3"
+    }
 
 
 # ── hash chain ───────────────────────────────────────────────────────────
@@ -300,3 +305,144 @@ def test_verify_source_chain_detects_id_gap(tmp_path):
     out = integrity.verify_source_chain(_reader(path), "testsrc")
     assert out["idContiguous"] is False
     assert out["gaps"] and out["gaps"][0]["missing"] == 2
+
+
+# ── new frameworks: ISO 27001 + 等保2.0 (djcp_l3) ─────────────────────────
+
+_NEW_FRAMEWORKS = ("iso27001", "djcp_l3")
+
+
+@pytest.mark.unit
+def test_new_frameworks_listed_with_controls():
+    from compliance_aiops.ops import controls as ops
+
+    listed = {f["framework"]: f for f in ops.list_frameworks()}
+    for name in _NEW_FRAMEWORKS:
+        assert name in listed, f"{name} missing from list_frameworks"
+        assert listed[name]["controls"] > 0
+        assert listed[name]["title"]  # display title present
+    assert listed["djcp_l3"]["title"] == "等保2.0 (DJCP L3)"
+    assert "27001" in listed["iso27001"]["title"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("framework", _NEW_FRAMEWORKS)
+def test_new_framework_controls_resolve_to_selectors(framework):
+    """Every control on a new framework must name a known selector."""
+    from compliance_aiops import frameworks as fw
+
+    controls = fw.controls_for(framework)
+    assert controls
+    for c in controls:
+        assert c.selector in fw.SELECTORS, f"{c.control_id} → unknown selector {c.selector}"
+        assert c.control_id and c.title and c.requirement
+        # control ids stay ASCII even when titles are localized
+        assert c.control_id.isascii(), f"non-ASCII control id: {c.control_id!r}"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("framework", _NEW_FRAMEWORKS)
+def test_new_framework_produces_bundle(framework, audit_db, tmp_path):
+    from compliance_aiops.config import AppConfig, AuditSource
+    from compliance_aiops.ops import bundle as ops
+    from compliance_aiops.ops import integrity
+
+    reader = _reader(audit_db)
+    cfg = AppConfig(sources=(AuditSource(name="testsrc", path=audit_db),),
+                    organization="Acme", bundle_dir=tmp_path)
+    path = tmp_path / f"{framework}.json"
+    res = ops.generate_evidence_bundle(reader, cfg, framework, out_path=str(path))
+    assert res["recordCount"] == len(_ROWS)
+    assert res["controlsTotal"] > 0
+
+    bundle = json.loads(path.read_text())
+    if framework == "djcp_l3":  # seal renders the localized framework name
+        assert bundle["seal"]["frameworkTitle"] == "等保2.0 (DJCP L3)"
+    verdict = integrity.verify_bundle(str(path))
+    assert verdict["verdict"] == "intact"
+
+
+@pytest.mark.unit
+def test_iso27001_flags_unapproved_privileged_change(audit_db):
+    """The change-selector ISO controls must flag the unapproved high-risk write
+    (osd_purge) exactly as SOC2 CC8.1 does — same gap model, new mapping."""
+    from compliance_aiops.ops import controls as ops
+
+    reader = _reader(audit_db)
+    cov = ops.coverage_summary(reader, "iso27001")
+    a832 = next(c for c in cov["controls"] if c["controlId"] == "A.8.32")
+    assert a832["gap"] and "without an approver" in a832["gap"]
+
+    gaps = ops.gap_analysis(reader, "iso27001")
+    assert any("without an approver" in g["reason"] for g in gaps["findings"])
+    # localized 等保 framework also resolves + reports coverage
+    djcp = ops.coverage_summary(reader, "djcp_l3")
+    assert djcp["frameworkTitle"] == "等保2.0 (DJCP L3)"
+    assert djcp["controlsTotal"] == 3
+
+
+@pytest.mark.unit
+def test_chainhead_identical_across_all_frameworks(audit_db, tmp_path):
+    """The chain is over the ordered records only, so chainHead is framework-
+    independent for the same audit rows — determinism unchanged by new mappings."""
+    from compliance_aiops.config import AppConfig, AuditSource
+    from compliance_aiops.ops import bundle as ops
+
+    reader = _reader(audit_db)
+    cfg = AppConfig(sources=(AuditSource(name="testsrc", path=audit_db),),
+                    organization="Acme", bundle_dir=tmp_path)
+    heads = {
+        f: ops.generate_evidence_bundle(reader, cfg, f, out_path=str(tmp_path / f"{f}.json"))[
+            "chainHead"
+        ]
+        for f in ("hipaa", "soc2", "iso27001", "djcp_l3")
+    }
+    assert len(set(heads.values())) == 1, f"chainHead diverged across frameworks: {heads}"
+
+
+# ── scheduling hint (writes nothing) ──────────────────────────────────────
+
+_CRON_5_FIELD = re.compile(r"^\S+\s+\S+\s+\S+\s+\S+\s+\S+$")
+
+
+@pytest.mark.unit
+def test_schedule_hint_returns_valid_cron_and_command():
+    from compliance_aiops.ops import bundle as ops
+
+    hint = ops.bundle_schedule_hint("iso27001", cron="30 3 * * 0", period="7d", sign=True)
+    assert hint["writesNothing"] is True
+    assert _CRON_5_FIELD.match(hint["cron"])
+    assert len(hint["cron"].split()) == 5
+    assert hint["command"] == "compliance-aiops bundle generate iso27001 --period 7d --sign"
+    assert hint["cron"] in hint["cronLine"] and hint["command"] in hint["cronLine"]
+    assert hint["masterPasswordEnv"] == "COMPLIANCE_AIOPS_MASTER_PASSWORD"
+
+
+@pytest.mark.unit
+def test_schedule_hint_rejects_bad_cron_and_framework():
+    from compliance_aiops.ops import bundle as ops
+
+    with pytest.raises(ValueError, match="5-field"):
+        ops.bundle_schedule_hint("soc2", cron="0 2 * *")  # 4 fields
+    with pytest.raises(ValueError):
+        ops.bundle_schedule_hint("not_a_framework")
+
+
+@pytest.mark.unit
+def test_resolve_period_windows_and_generate_period(audit_db, tmp_path):
+    from compliance_aiops.config import AppConfig, AuditSource
+    from compliance_aiops.ops import bundle as ops
+
+    since, until = ops.resolve_period("7d")
+    assert since and until and since < until
+    assert ops.resolve_period(None) == (None, None)
+    with pytest.raises(ValueError):
+        ops.resolve_period("banana")
+
+    reader = _reader(audit_db)
+    cfg = AppConfig(sources=(AuditSource(name="testsrc", path=audit_db),),
+                    organization="Acme", bundle_dir=tmp_path)
+    # a wide window still seals successfully (records here predate "now")
+    res = ops.generate_evidence_bundle(
+        reader, cfg, "soc2", out_path=str(tmp_path / "p.json"), period="520w")
+    assert res["recordCount"] == len(_ROWS)

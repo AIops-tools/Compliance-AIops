@@ -1,4 +1,5 @@
-"""Framework → control → evidence mapping (HIPAA / PCI-DSS / SOC 2 / GDPR).
+"""Framework → control → evidence mapping (HIPAA / PCI-DSS / SOC 2 / GDPR /
+ISO 27001 / 等保2.0).
 
 The audit row is the atomic evidence unit. Each :class:`Control` names a
 **selector** — which audit events count as evidence for it — and an honest
@@ -126,14 +127,69 @@ _CONTROLS: tuple[Control, ...] = (
             "integrity", "strong",
             "Redacted params (confidentiality) + hash chain (integrity) + "
             "verify_chain (regular testing) cover the technical-measures half."),
+    # ISO/IEC 27001:2022 — Annex A controls relevant to this line's audit evidence
+    Control("iso27001", "A.5.15", "Access control",
+            "Establish and enforce rules for physical/logical access based on "
+            "business and security requirements.",
+            "enforcement", "strong",
+            "Denials/blocks demonstrate access control OPERATES; does NOT evidence "
+            "the access-control policy / role design itself."),
+    Control("iso27001", "A.5.16", "Identity management",
+            "Manage the full lifecycle of identities so actions are attributable.",
+            "attribution", "strong",
+            "Per-op actor attribution (user/agent) is present; does NOT evidence "
+            "the identity provisioning / lifecycle process."),
+    Control("iso27001", "A.5.18", "Access rights",
+            "Provision, review, and revoke access rights per policy.",
+            "change", "partial",
+            "Approval-gating on privileged writes evidences access-rights "
+            "enforcement at point of use; does NOT evidence periodic access "
+            "review / timely revocation."),
+    Control("iso27001", "A.8.2", "Privileged access rights",
+            "Restrict and manage the allocation and use of privileged access.",
+            "change", "partial",
+            "approved_by on high/critical ops evidences privileged-use approval; "
+            "does NOT evidence the privileged-role assignment configuration."),
+    Control("iso27001", "A.8.15", "Logging",
+            "Produce, keep, and protect logs of activities, exceptions, and events.",
+            "audit_trail", "strong",
+            "Trail completeness + hash-chain integrity cover log production and "
+            "protection; verify_source_chain surfaces id gaps (deleted rows)."),
+    Control("iso27001", "A.8.16", "Monitoring activities",
+            "Monitor systems for anomalous behaviour and evaluate security events.",
+            "exception", "strong"),
+    Control("iso27001", "A.8.32", "Change management",
+            "Subject changes to information systems to change-management procedures.",
+            "change", "strong",
+            "approved_by + risk_tier + rationale (with dry-run / undo evidence) on "
+            "write ops are the change-management samples; assumes the approval "
+            "gate is configured."),
+    # 等保2.0 (GB/T 22239-2019, 三级) — DJCP Level 3 baseline
+    Control("djcp_l3", "8.1.5.4", "安全审计",
+            "审计覆盖到每个用户，审计记录完整且不可被删除/篡改，审计进程受到保护。",
+            "integrity", "strong",
+            "哈希链校验 + 逐条覆盖统计 + verify_source_chain(id 断号) 证明审计记录"
+            "完整性与进程保护；不证明审计策略的配置设计。"),
+    Control("djcp_l3", "8.1.4.2", "访问控制",
+            "依据安全策略最小权限分配访问权限，重要操作经授权审批。",
+            "change", "partial",
+            "risk_tier + approved_by 证明特权/高危操作的审批闭环运行；不证明"
+            "最小权限角色模型本身的设计配置。"),
+    Control("djcp_l3", "8.1.5", "安全管理中心",
+            "对分散的审计数据进行集中收集、存储与分析（集中审计）。",
+            "audit_trail", "strong",
+            "跨各 AIops 工具的 audit.db 集中读取汇总，证明集中审计能力运行；"
+            "不替代独立日志服务器/SIEM。"),
 )
 
-FRAMEWORKS = ("hipaa", "pci_dss", "soc2", "gdpr")
+FRAMEWORKS = ("hipaa", "pci_dss", "soc2", "gdpr", "iso27001", "djcp_l3")
 FRAMEWORK_TITLES = {
     "hipaa": "HIPAA Security Rule (§164.312)",
     "pci_dss": "PCI-DSS v4.0",
     "soc2": "SOC 2 Trust Services Criteria",
     "gdpr": "GDPR (Art. 30 / 32)",
+    "iso27001": "ISO/IEC 27001:2022 (Annex A)",
+    "djcp_l3": "等保2.0 (DJCP L3)",
 }
 
 
