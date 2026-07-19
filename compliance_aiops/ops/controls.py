@@ -12,21 +12,23 @@ from __future__ import annotations
 from typing import Any
 
 from compliance_aiops import frameworks as fw
-from compliance_aiops.ops._util import norm_event, s
-
-# Cap on rows scanned per source so a huge trail can't OOM a summary.
-_SCAN_LIMIT = 100_000
+from compliance_aiops.ops._util import SCAN_LIMIT, norm_event, s, scan
 
 
-def _events(reader: Any, since: str | None, until: str | None) -> list[dict]:
-    return reader.query(since=since, until=until, limit=_SCAN_LIMIT)
+def _events(reader: Any, since: str | None, until: str | None) -> tuple[list[dict], bool]:
+    """The event population for a report, plus whether the scan hit its cap.
+
+    A coverage percentage computed over a silently truncated population is not
+    evidence — so the flag travels with the numbers into every report below.
+    """
+    return scan(reader, since=since, until=until)
 
 
 def coverage_summary(reader: Any, framework: str, since: str | None = None,
                      until: str | None = None) -> dict:
     """[READ] Per-control coverage for one framework over a period."""
     controls = fw.controls_for(framework)
-    events = _events(reader, since, until)
+    events, scan_truncated = _events(reader, since, until)
     unapproved = fw.unapproved_writes(events)
     rows: list[dict] = []
     covered_count = 0
@@ -51,6 +53,8 @@ def coverage_summary(reader: Any, framework: str, since: str | None = None,
         "controlsTotal": len(controls),
         "controlsCovered": covered_count,
         "eventsScanned": len(events),
+        "scanLimit": SCAN_LIMIT,
+        "scanTruncated": scan_truncated,
         "controls": rows,
     }
 
@@ -70,8 +74,9 @@ def control_evidence(reader: Any, framework: str, control_id: str,
                      sample_size: int = 20) -> dict:
     """[READ] Evidence rows for ONE control + population size + reproducible query."""
     control = fw.get_control(framework, control_id)
-    events = _events(reader, since, until)
+    events, scan_truncated = _events(reader, since, until)
     evidence = fw.evidence_for(control, events)
+    requested = max(int(sample_size), 1)
     return {
         "framework": framework.lower(),
         "controlId": control.control_id,
@@ -81,7 +86,12 @@ def control_evidence(reader: Any, framework: str, control_id: str,
         "caveat": control.caveat or None,
         "selector": control.selector,
         "populationSize": len(evidence),
-        "sample": [norm_event(e) for e in evidence[:sample_size]],
+        "sample": [norm_event(e) for e in evidence[:requested]],
+        "returned": min(len(evidence), requested),
+        "limit": requested,
+        "truncated": len(evidence) > requested,
+        "scanLimit": SCAN_LIMIT,
+        "scanTruncated": scan_truncated,
         "reproduceWith": f"query_audit_events(selector='{control.selector}', "
                          f"since={since!r}, until={until!r})",
     }
@@ -91,7 +101,7 @@ def gap_analysis(reader: Any, framework: str, since: str | None = None,
                  until: str | None = None) -> dict:
     """[READ] Controls with no/weak evidence, each with an honest reason + caveat."""
     controls = fw.controls_for(framework)
-    events = _events(reader, since, until)
+    events, scan_truncated = _events(reader, since, until)
     unapproved = fw.unapproved_writes(events)
     gaps: list[dict] = []
     for c in controls:
@@ -113,6 +123,8 @@ def gap_analysis(reader: Any, framework: str, since: str | None = None,
         "gapCount": sum(1 for g in gaps if g["reason"] != _partial),
         "partialCount": sum(1 for g in gaps if "PARTIAL" in g["reason"]),
         "findings": gaps,
+        "scanLimit": SCAN_LIMIT,
+        "scanTruncated": scan_truncated,
         "note": "Audit trails evidence OPERATING effectiveness strongly and control "
                 "DESIGN/configuration only partially — pair partial controls with "
                 "config/policy evidence from your GRC system.",

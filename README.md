@@ -1,6 +1,6 @@
 <!-- mcp-name: io.github.AIops-tools/compliance-aiops -->
 
-# Compliance AIops (preview)
+# Compliance AIops
 
 > **Disclaimer**: Community-maintained open-source project. **Not affiliated with, endorsed by, or sponsored by any framework body or GRC vendor.** HIPAA, PCI-DSS, SOC 2, GDPR and OSCAL are referenced descriptively; the frameworks and trademarks belong to their owners. MIT licensed.
 
@@ -17,7 +17,7 @@ Unlike the other tools in the AIops-tools line it is **not a platform wrapper**:
 those on-disk audit databases, read **read-only**. That also makes it the
 easiest-to-self-test tool in the line — fully offline and deterministic.
 
-> **Preview.** Evidence, not certification. Fully offline; the source `audit.db`
+> **Evidence, not certification.** Fully offline; the source `audit.db`
 > files remain the system of record. OSCAL export is a documented v0.2 roadmap
 > item (v0.1 emits JSON + Markdown + CSV shaped to ease a future OSCAL
 > Assessment-Results adapter).
@@ -42,6 +42,46 @@ easiest-to-self-test tool in the line — fully offline and deterministic.
   themselves covered by tests: synthetic audit DBs are built through the real
   governance-harness `AuditEngine`, a golden reproducible `chainHead` is
   asserted, and tamper tests confirm detection. No live infrastructure needed.
+
+## Security: read-only mode
+
+This tool is meant to be handed to an AI agent, so its safety story is enforced
+by the server rather than requested in a prompt:
+
+```bash
+export COMPLIANCE_READ_ONLY=1
+```
+
+With that set, the **4 write tools are never registered**. An MCP client
+lists **14 tools instead of 18** — the writes are not hidden, not
+gated behind a flag, and not merely refused when called. They are absent from
+the session. A model cannot invoke a tool it was never offered, and cannot be
+argued into one.
+
+That distinction is the whole point. A tool that exists but refuses still invites
+retry loops and "I'll describe the call instead" behaviour from smaller models,
+and it leaves a reviewer trusting a promise. An absent tool is a fact you can
+check: connect, list the tools, and see that the writes are not there.
+
+Enforcement is two layers deep, so the switch cannot be sidestepped by changing
+entry point:
+
+| Layer | What it does | Covers |
+|---|---|---|
+| `@governed_tool` harness | refuses every non-read operation outright | MCP, CLI, and in-process callers |
+| MCP registration | write tools are removed from `list_tools()` | anything speaking MCP |
+
+Read operations are unaffected, and every call is still audited to
+`~/.compliance-aiops/audit.db`.
+
+> The read/write split is derived from each tool's declared `risk_level`, and a
+> test asserts that this never disagrees with the `[READ]`/`[WRITE]` tag in the
+> tool's own documentation — so a write can't quietly present itself as a read.
+
+Running a smaller / local model? See
+[agent-guardrails.md](skills/compliance-aiops/references/agent-guardrails.md) — it lists
+the guardrails this tool now enforces for you (so you don't spend prompt budget
+restating them) and gives a ready-made system prompt for what's left.
 
 ## Tools (16 MCP tools)
 
@@ -71,7 +111,7 @@ easiest-to-self-test tool in the line — fully offline and deterministic.
 | `export_bundle` | low | Render a bundle to markdown / csv / json |
 | `sign_bundle` | medium | HMAC over the seal using the stored signing key |
 
-The CLI exposes a convenience subset; the full 15-tool surface is available over MCP.
+The CLI exposes a convenience subset; the full 18-tool surface is available over MCP.
 
 ## Frameworks & controls
 
@@ -144,7 +184,7 @@ It returns a `cronLine` you paste into `crontab -e`, for example:
   least-privilege roles). Every control carries a `strong` / `partial` label and
   `gap_analysis` surfaces the caveat rather than overclaiming.
 
-## Supported scope & limitations (preview)
+## Supported scope & limitations
 
 - **Evidence, not certification.** This produces auditor-ready evidence bundles;
   it does not issue attestations, opinions, or certifications.
@@ -153,7 +193,9 @@ It returns a `cronLine` you paste into `crontab -e`, for example:
 - **Not in scope:** it does **not** scan infrastructure, connect to any platform,
   or replace a GRC platform. For platform operations use the other AIops-tools.
 - **OSCAL export is v0.2.** v0.1 emits JSON + Markdown + CSV.
-- **Preview:** interfaces may change before v1.0.
+- **Interfaces may change before v1.0.**
+- **Verification:** the integrity claims are covered by deterministic offline tests;
+  see [`docs/VERIFICATION.md`](docs/VERIFICATION.md) for the reproducible run.
 
 ## Missing a capability?
 

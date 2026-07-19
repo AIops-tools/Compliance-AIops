@@ -1,9 +1,9 @@
 # compliance-aiops CLI reference
 
-> Preview / evidence, not certification. Reads the local audit trails governed
+> Evidence, not certification. Reads the local audit trails governed
 > AIops tools write (`~/.*-aiops/audit.db`) read-only. No external API, no
 > network, no platform credentials. The CLI is a convenience subset; the full
-> 15-tool surface is available over MCP.
+> 18-tool surface is available over MCP.
 
 ## Setup & diagnostics
 

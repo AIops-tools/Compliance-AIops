@@ -38,6 +38,11 @@ def query_audit_events(
             enforcement / exception.
         since / until: ISO timestamps bounding the period.
         limit: Max rows to return.
+
+    Returns ``{"events": [...], "count": N, "returned": N, "limit": L,
+    "truncated": bool}``. When ``truncated`` is true more events matched than
+    were returned — narrow the filters or raise the limit. Never characterise
+    the trail (counts, "no violations found") from a truncated result.
     """
     return ops.query_events(_get_reader(), source=source, skill=skill, tool=tool,
                             status=status, risk_level=risk_level, approved=approved,

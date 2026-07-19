@@ -1,6 +1,6 @@
 # compliance-aiops setup & security guide
 
-> Preview / evidence, not certification. Reads the local audit trails governed
+> Evidence, not certification. Reads the local audit trails governed
 > AIops tools already write, read-only. **No external API, no network, no
 > platform credentials.**
 

@@ -159,7 +159,7 @@ def test_real_write_tool_persists_audit_row(gov_home, monkeypatch):
     audit = _rows(gov_home / "audit.db", "audit_log")
     assert [r["tool"] for r in audit] == ["generate_evidence_bundle"]
     assert audit[0]["status"] == "ok"
-    assert audit[0]["risk_level"] == "low"
+    assert audit[0]["risk_level"] == "medium"  # bundle generation writes a file
 
 @pytest.mark.unit
 def test_sanitized_error_result_is_audited_as_error_and_records_no_undo(gov_home):

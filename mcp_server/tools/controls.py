@@ -44,6 +44,11 @@ def control_evidence(
         control_id: e.g. "164.312(b)", "10.2", "CC8.1", "Art.30".
         since / until: ISO timestamps bounding the period.
         sample_size: Number of representative evidence rows to include.
+
+    ``populationSize`` is the full evidence count; ``sample`` is capped at
+    ``sample_size`` and sets ``truncated`` when there was more. ``scanTruncated``
+    reports whether the underlying event scan itself hit its cap — if it is true,
+    the population is a slice and no coverage claim should be made from it.
     """
     return ops.control_evidence(_get_reader(), framework, control_id, since, until, sample_size)
 

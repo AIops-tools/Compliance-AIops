@@ -1,10 +1,16 @@
 ---
 name: compliance-aiops
+slug: compliance-aiops
+displayName: "Compliance AIops"
+summary: "Compliance evidence from AIops audit trails: HIPAA/PCI/SOC2/GDPR, hash-chain-sealed, 18 tools."
+license: MIT
+homepage: https://github.com/AIops-tools/Compliance-AIops
+tags: [aiops, mcp, governance, compliance]
 description: >
   Use this skill whenever the user needs compliance evidence from the audit trails their governed AIops agents already write — mapping AI-agent infra-ops activity to HIPAA §164.312, PCI-DSS v4.0, SOC 2 TSC, or GDPR controls, producing a change-approval report, a gap analysis, an exceptions/anomaly report, or a hash-chain-sealed, tamper-evident evidence bundle.
   Always use this skill for "compliance evidence", "HIPAA / PCI-DSS / SOC 2 / GDPR evidence", "audit trail report", "coverage for control X", "which controls are we short on / gap analysis", "who approved this change / change-management evidence", "denied or errored ops / anomaly evidence", "seal / sign an evidence bundle", "prove this bundle wasn't altered", or "detect deleted audit rows".
   Do NOT use to scan or operate infrastructure and do NOT treat it as a GRC platform — it reads the local audit databases the OTHER AIops-tools write and converts them to evidence; for platform operations use those other AIops-tools.
-  Preview — evidence, not certification. Reads sibling audit trails read-only; no external API, no network, no platform credentials. Fully offline and deterministic.
+  Evidence, not certification. Reads sibling audit trails read-only; no external API, no network, no platform credentials. Fully offline and deterministic.
 installer:
   kind: uv
   package: compliance-aiops
@@ -13,21 +19,21 @@ allowed-tools:
   - Bash
 metadata: {"openclaw":{"requires":{"env":["COMPLIANCE_AIOPS_CONFIG"],"bins":["compliance-aiops"],"config":["~/.compliance-aiops/config.yaml"]},"optional":{"env":["COMPLIANCE_AIOPS_MASTER_PASSWORD"],"config":["~/.compliance-aiops/secrets.enc"]},"primaryEnv":"COMPLIANCE_AIOPS_CONFIG","homepage":"https://github.com/AIops-tools/Compliance-AIops","emoji":"📋","os":["macos","linux"]}}
 compatibility: >
-  Standalone compliance-evidence tooling (preview). The governance harness (audit, policy, token/runaway budget, undo, risk-tiers) is bundled in the package — no external skill-family dependency.
+  Standalone compliance-evidence tooling. The governance harness (audit, policy, token/runaway budget, undo, risk-tiers) is bundled in the package — no external skill-family dependency.
   Data source: the LOCAL audit databases the other governed AIops tools already write, discovered by glob at ~/.*-aiops/audit.db (one shared audit_log schema). These are read READ-ONLY. There is NO external API, NO network, and NO platform credentials.
   The only optional secret is a bundle-signing key, stored ENCRYPTED in ~/.compliance-aiops/secrets.enc (Fernet/AES-128 + scrypt-derived key) — never plaintext on disk, unlocked by a master password from COMPLIANCE_AIOPS_MASTER_PASSWORD (non-interactive/MCP/CI) or an interactive prompt (CLI on a TTY). If you never sign bundles you need no secret at all.
   Outputs: evidence bundles written to ~/.compliance-aiops/bundles/ (the only files written). All tool calls are themselves audited to a local SQLite DB under ~/.compliance-aiops/ (relocatable via COMPLIANCE_AIOPS_HOME). Write tools (generate_evidence_bundle, export_bundle: low risk; sign_bundle: medium) pass through the @governed_tool decorator but perform NO external mutation.
   Integrity: bundles are hash-chain-sealed (SHA-256 over ordered records; reproducible chainHead) with an optional HMAC signature. Tamper-EVIDENT, not tamper-PROOF — the source audit.db remains the system of record.
   Webhooks: none — no outbound network calls at all.
   Transitive dependencies: the MCP SDK and cryptography (Fernet). No post-install scripts or background services.
-  PREVIEW: evidence, not certification. Fully offline and deterministic. OSCAL export is a v0.2 roadmap item (v0.1 emits JSON/Markdown/CSV).
+  Evidence, not certification. Fully offline and deterministic; the integrity claims are covered by deterministic offline tests (see docs/VERIFICATION.md). OSCAL export is a v0.2 roadmap item (v0.1 emits JSON/Markdown/CSV).
 ---
 
-# Compliance AIops (preview)
+# Compliance AIops
 
 > **Disclaimer**: Community-maintained open-source project, **not affiliated with, endorsed by, or sponsored by any framework body or GRC vendor.** HIPAA, PCI-DSS, SOC 2, GDPR and OSCAL are referenced descriptively; trademarks belong to their owners. Source at [github.com/AIops-tools/Compliance-AIops](https://github.com/AIops-tools/Compliance-AIops) under the MIT license.
 
-Governed **compliance-evidence** tooling — **15 MCP tools**. It **reads the audit
+Governed **compliance-evidence** tooling — **18 MCP tools**. It **reads the audit
 trails your governed AIops agents already write** (`~/.<tool>-aiops/audit.db`, one
 shared `audit_log` schema, discovered via `~/.*-aiops/audit.db`) **read-only**,
 and turns that activity into **framework-mapped, hash-chain-sealed compliance
@@ -36,8 +42,7 @@ platform.
 
 > **Standalone**: the governance harness is bundled (`compliance_aiops.governance`).
 > **Not a platform wrapper** — no external API, no network, no platform
-> credentials. **Preview**: evidence, not certification; fully offline and
-> deterministic.
+> credentials. **Evidence, not certification**; fully offline and deterministic.
 
 ## What This Skill Does
 
@@ -48,6 +53,7 @@ platform.
 | **Assurance reports** | `approval_report`, `exceptions_report` | 2 | read |
 | **Integrity** | `verify_source_chain`, `verify_bundle`, `list_bundles`, `bundle_schedule_hint` | 4 | read |
 | **Artifacts** | `generate_evidence_bundle` (low), `export_bundle` (low), `sign_bundle` (medium) | 3 | write (no external mutation) |
+| **Undo** | `undo_list`, `undo_apply` | 2 | undo |
 
 ## Frameworks & sample controls
 
@@ -100,46 +106,91 @@ other AIops-tools.
 
 ## Common Workflows
 
-### Produce a SOC 2 CC8.1 change-approval bundle for Q3
+> **Secure by default (v0.2.0+)**: with no `~/.compliance-aiops/rules.yaml`, high/critical operations are denied unless `COMPLIANCE_AUDIT_APPROVED_BY` names an approver (set `COMPLIANCE_AUDIT_RATIONALE` too). `compliance-aiops init` seeds a starter rules.yaml; an operator-authored rules file is honoured as-is.
 
-1. `compliance-aiops report coverage soc2` → confirm CC8.1 is covered
-2. `compliance-aiops report approvals` → high-risk write ops + approver + rationale
-3. `compliance-aiops bundle generate soc2 --since 2026-07-01 --until 2026-10-01 [--sign]`
+### 1. "The SOC 2 auditor wants Q3 change-approval evidence by Friday"
+
+1. `compliance-aiops doctor` → confirm the source audit trails are discoverable
+   and readable before you promise a delivery date
+2. `compliance-aiops report sources` (MCP: `list_audit_sources`) → which sibling
+   audit trails were found, and the event count and date range in each. If a
+   source you expected is missing, the bundle would be silently incomplete —
+   fix discovery first
+3. `compliance-aiops report coverage soc2` → confirm CC8.1 is actually covered by
+   the evidence you have, before generating anything
+4. `compliance-aiops report approvals` → the high-risk write operations with
+   their named approver and rationale — this is the population CC8.1 is asking
+   about
+5. `compliance-aiops bundle generate soc2 --since 2026-07-01 --until 2026-10-01 --sign`
    → a hash-chain-sealed bundle under `~/.compliance-aiops/bundles/`
-4. `compliance-aiops bundle export <path> --format markdown` → auditor-facing report
+6. `compliance-aiops bundle export <path> --format markdown` → the
+   auditor-facing report (also `json` / `csv`)
+7. **Failure branch**: if `report coverage` shows CC8.1 thin, **do not generate
+   anyway and hope** — run workflow 2 first and hand the auditor the honest gap
+   statement. A bundle asserts what the audit trail contains; it cannot
+   manufacture evidence that was never recorded.
 
-### Which controls are we short on?
+### 2. "Which controls are we actually short on?" (gap analysis)
 
-1. `compliance-aiops report gaps hipaa` (or `pci_dss` / `soc2` / `gdpr`) →
-   controls with no or weak evidence, each with an honest caveat and remediation
-2. Drill into one control's population with `control_evidence` (MCP) to see the
-   reproducible query behind the coverage number
+1. `compliance-aiops report sources` → establish the evidence base and its date
+   coverage; a gap caused by a *missing source* is a different problem from a
+   gap caused by *missing activity*
+2. `compliance-aiops report gaps hipaa` (also `pci_dss`, `soc2`, `gdpr`) →
+   controls with no or weak evidence, each with an honest caveat and a
+   remediation suggestion
+3. `compliance-aiops report exceptions` → the operations that ran **without** an
+   approver or rationale — usually the fastest-to-fix category of gap
+4. Drill into one control's population with `control_evidence` (MCP) to see the
+   **reproducible query** behind the coverage number, so the figure can be
+   defended rather than merely quoted
+5. `compliance-aiops report coverage <framework>` again after remediation to
+   confirm the gap actually closed
+6. **Failure branch**: if `list_frameworks` does not carry the framework or
+   control the auditor named, say so — this tool maps to HIPAA / PCI-DSS /
+   SOC 2 / GDPR and does not silently substitute a near-miss control.
 
-### Prove this bundle wasn't altered
+### 3. Prove a delivered bundle was not altered
 
-1. `compliance-aiops bundle verify <path>` → re-derives the chain, compares the
-   seal `chainHead`, and checks the optional signature
-2. Because the chain is over evidence records only, the same (framework, period,
-   sources) reproduces the same `chainHead` — record it out-of-band as an anchor
+1. `compliance-aiops bundle list` → locate the bundle and its recorded
+   `chainHead`
+2. `compliance-aiops bundle verify <path>` → re-derives the hash chain, compares
+   it to the seal's `chainHead`, and checks the optional signature
+3. Because the chain is computed over evidence records only, the **same**
+   (framework, period, sources) reproduces the **same** `chainHead` — regenerate
+   and compare to prove reproducibility
+4. Record the `chainHead` **out-of-band** (ticket, email to the auditor, WORM
+   store) at delivery time; that out-of-band copy is what makes later
+   verification meaningful
+5. `verify_source_chain` (MCP) on each source → returns the source chain head and
+   flags **row-id gaps**, a sign that rows were deleted from that `audit.db`
+6. **Failure branch**: a `chainHead` mismatch or a row-id gap means the evidence
+   is **not** trustworthy — escalate, and treat the source `audit.db` as the
+   system of record. Do not re-seal a fresh bundle to make the mismatch go away;
+   the tool is **tamper-evident, not tamper-proof**, and its whole value is that
+   it reports this rather than papering over it.
 
-### Detect deleted audit rows
+### 4. 定期封存 — schedule periodic sealed bundles (no daemon)
 
-Use `verify_source_chain` (MCP) on a source: it returns the chain head and flags
-**row-id gaps** — a sign that rows were deleted from that `audit.db`.
+This tool ships **no scheduler**; it emits a cron line for you to install.
 
-### 定期封存 — schedule periodic sealed bundles (no daemon)
-
-This tool ships **no scheduler**; it emits a cron line for you to install:
-
-1. `compliance-aiops bundle schedule soc2 --cron "0 2 * * 1" --period 7d --sign`
-   (or the `bundle_schedule_hint` MCP tool) → returns a `cronLine` + the exact
+1. `compliance-aiops report sources` → confirm the sources you want sealed are
+   discoverable from the account cron will run as (a common failure: cron sees a
+   different `$HOME`)
+2. `compliance-aiops bundle schedule soc2 --cron "0 2 * * 1" --period 7d --sign`
+   (MCP: `bundle_schedule_hint`) → returns a `cronLine` plus the exact
    non-interactive command. **It writes nothing.**
-2. Paste the `cronLine` into `crontab -e`, e.g.
-   `0 2 * * 1 compliance-aiops bundle generate soc2 --period 7d --sign`.
-3. `--period` (`7d` / `24h` / `2w` / `last-7-days`, also on `bundle generate`)
-   seals the trailing window each run. Export `COMPLIANCE_AIOPS_MASTER_PASSWORD`
-   in the cron environment so the signing key unlocks non-interactively — never
-   inline the real password in the crontab.
+3. Paste the `cronLine` into `crontab -e`, e.g.
+   `0 2 * * 1 compliance-aiops bundle generate soc2 --period 7d --sign`
+4. Export `COMPLIANCE_AIOPS_MASTER_PASSWORD` in the cron environment so the
+   signing key unlocks non-interactively — never inline the real password in the
+   crontab
+5. After the first scheduled run, `compliance-aiops bundle list` and
+   `bundle verify` the newest bundle to confirm the unattended path really works
+6. **Failure branch**: if the cron run produces no bundle, the usual causes are
+   an unset master password (signing cannot unlock) or `COMPLIANCE_AIOPS_HOME`
+   not being set in cron's environment, so sources resolve elsewhere. Verify by
+   running the emitted command by hand with a clean environment before trusting
+   the schedule.
 
 ## Governance & Safety
 

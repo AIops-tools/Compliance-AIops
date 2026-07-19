@@ -1,6 +1,6 @@
 # compliance-aiops capabilities
 
-> Preview / evidence, not certification. 15 MCP tools (12 read, 3 write). Data
+> Evidence, not certification. 18 MCP tools (13 read, 3 write, 2 undo). Data
 > source: the local `audit_log` trails governed AIops tools write, discovered via
 > `~/.*-aiops/audit.db` and read **read-only**. No external API, no network, no
 > platform credentials. `since` / `until` accept ISO-8601 timestamps.
@@ -44,8 +44,8 @@
 
 | Tool | Risk | Inputs | Returns / effect |
 |------|:---:|--------|------------------|
-| `generate_evidence_bundle` | **low** | `framework`, `period_start?`, `period_end?`, `out_path?`, `sign=False`, `period?` (relative window e.g. `7d`) | one call: coverage + approval trail + exceptions + sealed records → a bundle `.json` under `~/.compliance-aiops/bundles/`; returns path + `chainHead` |
-| `export_bundle` | **low** | `bundle_path`, `fmt="markdown"` (`markdown`\|`csv`\|`json`), `out_path?` | renders a bundle to the chosen format |
+| `generate_evidence_bundle` | **medium** | `framework`, `period_start?`, `period_end?`, `out_path?`, `sign=False`, `period?` (relative window e.g. `7d`) | one call: coverage + approval trail + exceptions + sealed records → a bundle `.json` under `~/.compliance-aiops/bundles/`; returns path + `chainHead` |
+| `export_bundle` | **medium** | `bundle_path`, `fmt="markdown"` (`markdown`\|`csv`\|`json`), `out_path?` | renders a bundle to the chosen format |
 | `sign_bundle` | **medium** | `bundle_path` | adds an HMAC signature over the seal using the stored signing key |
 
 ## Integrity model

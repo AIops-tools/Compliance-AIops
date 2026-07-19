@@ -12,13 +12,13 @@ from mcp_server._shared import _get_config, _get_reader, mcp, tool_errors
 
 
 @mcp.tool()
-@governed_tool(risk_level="low")
+@governed_tool(risk_level="medium")
 @tool_errors("dict")
 def generate_evidence_bundle(
     framework: str, period_start: Optional[str] = None, period_end: Optional[str] = None,
     out_path: Optional[str] = None, sign: bool = False, period: Optional[str] = None,
 ) -> dict:
-    """[WRITE][risk=low] Assemble + hash-chain-seal an evidence bundle for a framework.
+    """[WRITE][risk=medium] Assemble + hash-chain-seal an evidence bundle for a framework.
 
     One-call happy path: coverage + approval trail + exceptions + sealed evidence
     records → a bundle .json under ~/.compliance-aiops/bundles/. Reads audit DBs
@@ -75,10 +75,10 @@ def sign_bundle(bundle_path: str) -> dict:
 
 
 @mcp.tool()
-@governed_tool(risk_level="low")
+@governed_tool(risk_level="medium")
 @tool_errors("dict")
 def export_bundle(bundle_path: str, fmt: str = "markdown", out_path: Optional[str] = None) -> dict:
-    """[WRITE][risk=low] Render a bundle to markdown / csv / json.
+    """[WRITE][risk=medium] Render a bundle to markdown / csv / json.
 
     Args:
         bundle_path: Path to a bundle .json.

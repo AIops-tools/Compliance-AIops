@@ -25,7 +25,7 @@ from compliance_aiops import __version__, frameworks, hashchain
 from compliance_aiops.config import AppConfig
 from compliance_aiops.ops import controls as controls_ops
 from compliance_aiops.ops import reports as reports_ops
-from compliance_aiops.ops._util import norm_event, s
+from compliance_aiops.ops._util import SCAN_LIMIT, norm_event, s, scan
 from compliance_aiops.secretstore import MASTER_PASSWORD_ENV
 
 _SCHEMA_VERSION = 1
@@ -57,9 +57,16 @@ def resolve_period(period: str | None) -> tuple[str | None, str | None]:
     return since.isoformat(), until.isoformat()
 
 
-def _ordered_events(reader: Any, since: str | None, until: str | None) -> list[dict]:
-    rows = reader.query(since=since, until=until, limit=100_000)
-    return sorted(rows, key=lambda r: (r.get("ts", ""), r.get("id", 0)))
+def _ordered_events(reader: Any, since: str | None,
+                    until: str | None) -> tuple[list[dict], bool]:
+    """Bundle records in deterministic (ts, id) order, plus a scan-cap flag.
+
+    A sealed bundle that silently omitted rows beyond the scan cap would present
+    a partial trail as a complete one — the failure mode an evidence tool must
+    never have. The flag is recorded in the seal so a verifier sees it too.
+    """
+    rows, truncated = scan(reader, since=since, until=until)
+    return sorted(rows, key=lambda r: (r.get("ts", ""), r.get("id", 0))), truncated
 
 
 def _source_manifest(reader: Any) -> list[dict]:
@@ -93,7 +100,7 @@ def generate_evidence_bundle(
     period_start: str | None = None, period_end: str | None = None,
     out_path: str | None = None, sign: bool = False, period: str | None = None,
 ) -> dict:
-    """[WRITE][low] Assemble + seal an evidence bundle for a framework/period.
+    """[WRITE][medium] Assemble + seal an evidence bundle for a framework/period.
 
     ``period`` is a convenience relative window (e.g. ``7d`` / ``last-7-days``)
     used only when explicit ``period_start`` / ``period_end`` are not supplied.
@@ -104,7 +111,8 @@ def generate_evidence_bundle(
     approval = reports_ops.approval_report(reader, period_start, period_end)
     exceptions = reports_ops.exceptions_report(reader, period_start, period_end)
 
-    records = [norm_event(e) for e in _ordered_events(reader, period_start, period_end)]
+    ordered, scan_truncated = _ordered_events(reader, period_start, period_end)
+    records = [norm_event(e) for e in ordered]
     chained = hashchain.chain(records)
 
     generated_at = datetime.now(tz=UTC).isoformat()
@@ -116,6 +124,8 @@ def generate_evidence_bundle(
         "period": {"start": period_start, "end": period_end},
         "sources": _source_manifest(reader),
         "recordCount": chained["count"],
+        "scanLimit": SCAN_LIMIT,
+        "scanTruncated": scan_truncated,
         "genesisHash": hashchain.GENESIS,
         "chainHead": chained["head"],
         "generatedAt": generated_at,
@@ -142,6 +152,7 @@ def generate_evidence_bundle(
 
     return {"action": "generate_evidence_bundle", "bundlePath": str(path),
             "framework": framework.lower(), "recordCount": chained["count"],
+            "scanLimit": SCAN_LIMIT, "scanTruncated": scan_truncated,
             "chainHead": chained["head"], "signed": bool(seal["signature"]),
             "controlsCovered": coverage["controlsCovered"],
             "controlsTotal": coverage["controlsTotal"]}
@@ -199,7 +210,7 @@ def sign_bundle(config: AppConfig, bundle_path: str) -> dict:
 
 
 def export_bundle(bundle_path: str, fmt: str = "markdown", out_path: str | None = None) -> dict:
-    """[WRITE][low] Render a bundle to markdown / csv (json is the native form)."""
+    """[WRITE][medium] Render a bundle to markdown / csv (json is the native form)."""
     path = Path(bundle_path).expanduser()
     bundle = json.loads(path.read_text("utf-8"))
     fmt = fmt.lower()

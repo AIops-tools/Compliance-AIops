@@ -18,19 +18,26 @@ from pathlib import Path
 from typing import Any
 
 from compliance_aiops import hashchain
-from compliance_aiops.ops._util import s
+from compliance_aiops.ops._util import SCAN_LIMIT, opt_s, s, scan
 
 
-def _ordered(reader: Any, source: str, since: str | None, until: str | None) -> list[dict]:
-    """A source's events in deterministic (ts, id) ascending order."""
-    rows = reader.query(source=source, since=since, until=until, limit=100_000)
-    return sorted(rows, key=lambda r: (r.get("ts", ""), r.get("id", 0)))
+def _ordered(reader: Any, source: str, since: str | None,
+             until: str | None) -> tuple[list[dict], bool]:
+    """A source's events in deterministic (ts, id) ascending order.
+
+    Also reports whether the scan hit its cap: a chainHead derived from a capped
+    population attests only to that slice, and comparing it against a head taken
+    over a different slice would look like tampering. Say so rather than let the
+    caller assume the head covers everything.
+    """
+    rows, truncated = scan(reader, source=source, since=since, until=until)
+    return sorted(rows, key=lambda r: (r.get("ts", ""), r.get("id", 0))), truncated
 
 
 def verify_source_chain(reader: Any, source: str, since: str | None = None,
                         until: str | None = None) -> dict:
     """[READ] Chain head for a source's current events + row-id gap detection."""
-    events = _ordered(reader, source, since, until)
+    events, scan_truncated = _ordered(reader, source, since, until)
     result = hashchain.chain(events)
     gaps = _id_gaps(reader.ordered_ids(source))
     return {
@@ -39,6 +46,8 @@ def verify_source_chain(reader: Any, source: str, since: str | None = None,
         "chainHead": result["head"],
         "idContiguous": not gaps,
         "gaps": gaps,
+        "scanLimit": SCAN_LIMIT,
+        "scanTruncated": scan_truncated,
         "note": "Record chainHead out-of-band; re-run later to detect changes. "
                 "Gaps in row ids may indicate deleted audit rows.",
     }
@@ -71,12 +80,15 @@ def verify_bundle(bundle_path: str) -> dict:
 
     return {
         "bundlePath": str(path),
-        "framework": s(seal.get("framework"), 32),
+        "framework": opt_s(seal.get("framework"), 32),
         "recordCount": len(records),
         "chainValid": chain_verdict.get("valid"),
         "brokenAtSeq": chain_verdict.get("brokenAtSeq"),
         "sealHead": seal_head,
         "headMatches": head_matches,
         "signaturePresent": bool(seal.get("signature")),
+        # Carried through from the seal: an intact chain over a capped scan is
+        # still only evidence about that slice.
+        "scanTruncated": seal.get("scanTruncated"),
         "verdict": "intact" if head_matches else "TAMPERED_OR_MODIFIED",
     }

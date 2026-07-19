@@ -149,7 +149,7 @@ def test_mcp_exposes_and_governs_all_tools():
 def test_risk_tiers():
     from mcp_server.tools import bundle as b
 
-    assert b.generate_evidence_bundle._risk_level == "low"
+    assert b.generate_evidence_bundle._risk_level == "medium"  # writes a file to disk
     assert b.sign_bundle._risk_level == "medium"  # touches the secret store
 
 

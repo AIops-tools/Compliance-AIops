@@ -75,7 +75,7 @@ def tool_errors(shape: str = "dict") -> Callable:
 mcp = FastMCP(
     "compliance-aiops",
     instructions=(
-        "Compliance evidence operations (preview): reads the local audit trails "
+        "Compliance evidence operations: reads the local audit trails "
         "the sibling AIops tools already write (~/.<tool>-aiops/audit.db) and turns "
         "them into framework-mapped, hash-chain-sealed evidence. Query audit events "
         "across tools; map coverage / per-control evidence / gaps for HIPAA, "
