@@ -9,6 +9,15 @@ import typer
 
 from compliance_aiops.cli._common import cli_errors, console, get_reader
 
+
+def _emit(result: object) -> None:
+    """Print a governed tool's result, exiting non-zero on a governed error dict."""
+    if isinstance(result, dict) and result.get("error"):
+        console.print(f"[red]Error:[/] {result['error']}")
+        raise typer.Exit(1)
+    console.print_json(json.dumps(result))
+
+
 bundle_app = typer.Typer(
     name="bundle",
     help="Evidence bundles: generate, verify, list, export.",
@@ -40,13 +49,13 @@ def bundle_generate(
     Use --since/--until for an explicit window, or --period for a convenience
     relative window (e.g. --period 7d for the last 7 days).
     """
-    from compliance_aiops.ops import bundle as ops
+    # Route through the governed twin so the CLI seal lands an audit row, just
+    # like the MCP path — a compliance tool that seals evidence must not itself
+    # write off the record.
+    from mcp_server.tools import bundle as gov
 
-    reader, cfg = get_reader()
-    console.print_json(json.dumps(
-        ops.generate_evidence_bundle(reader, cfg, framework,
-                                     period_start=since, period_end=until,
-                                     sign=sign, period=period)))
+    _emit(gov.generate_evidence_bundle(
+        framework, period_start=since, period_end=until, sign=sign, period=period))
 
 
 @bundle_app.command("schedule")
@@ -98,6 +107,6 @@ def bundle_export(
     fmt: Annotated[str, typer.Option("--format", help="markdown / csv / json")] = "markdown",
 ) -> None:
     """Render a bundle to markdown / csv / json."""
-    from compliance_aiops.ops import bundle as ops
+    from mcp_server.tools import bundle as gov
 
-    console.print_json(json.dumps(ops.export_bundle(bundle_path, fmt=fmt)))
+    _emit(gov.export_bundle(bundle_path, fmt=fmt))

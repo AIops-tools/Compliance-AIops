@@ -133,8 +133,8 @@ def gap_analysis(reader: Any, framework: str, since: str | None = None,
 
 def _remediation(control: fw.Control, reason: str) -> str:
     if "without an approver" in reason:
-        return ("Require an approver on high-risk ops: set the risk_tiers policy and "
-                "have operators pass <TOOL>_AUDIT_APPROVED_BY on high/critical writes.")
+        return ("Require an approver on high-risk ops: have operators pass "
+                "<TOOL>_AUDIT_APPROVED_BY on high/critical writes.")
     if "No matching evidence" in reason:
         return "Run governed ops in this period, or widen the reporting window."
     return "Supplement with control-design evidence (config/policy) from your GRC system."

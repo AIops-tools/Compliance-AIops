@@ -3,9 +3,9 @@
 Unlike the platform tools, this wizard collects an **organization name** and
 registers discovered sibling **audit sources** — there is no TLS prompt and the
 secret store holds only an *optional* bundle-signing key. The wizard is driven
-end-to-end through Typer's CliRunner with every path (config.yaml, secrets.enc,
-rules.yaml) isolated under tmp_path; source discovery is patched so nothing on
-the real machine ever leaks in.
+end-to-end through Typer's CliRunner with every path (config.yaml, secrets.enc)
+isolated under tmp_path; source discovery is patched so nothing on the real
+machine ever leaks in.
 """
 
 from __future__ import annotations
@@ -126,22 +126,12 @@ def test_init_signing_key_accepted_stored_encrypted(init_home):
     assert SIGNING_KEY not in (init_home / "secrets.enc").read_text("utf-8")
 
 
-def test_init_seeds_default_rules_with_dual_control_tier(init_home):
+def test_init_writes_no_policy_rules(init_home):
+    """The skill no longer authorizes, so init seeds no rules.yaml — a fresh
+    install delivers full functionality and leaves permission to the account."""
     result = _run_init()
     assert result.exit_code == 0, result.output
-    rules = yaml.safe_load((init_home / "rules.yaml").read_text("utf-8"))
-    tiers = {r["name"]: r for r in rules["risk_tiers"]}
-    assert "high-risk-requires-approver" in tiers
-    assert tiers["high-risk-requires-approver"]["tier"] == "dual"
-    assert tiers["high-risk-requires-approver"]["min_risk_level"] == "high"
-
-
-def test_init_rerun_does_not_clobber_existing_rules(init_home):
-    sentinel = "# operator-authored rules — must survive re-init\nrisk_tiers: []\n"
-    (init_home / "rules.yaml").write_text(sentinel, "utf-8")
-    result = _run_init()
-    assert result.exit_code == 0, result.output
-    assert (init_home / "rules.yaml").read_text("utf-8") == sentinel
+    assert not (init_home / "rules.yaml").exists()
 
 
 def test_init_declining_doctor_confirm_skips_doctor(init_home, monkeypatch):

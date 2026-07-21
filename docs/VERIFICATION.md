@@ -112,10 +112,11 @@ do not silently pass.
       (bundles + this tool's own audit.db). Confirm with a filesystem diff.
 - [ ] `export_bundle` with a traversal path (`../../etc/x`) → refused.
 
-### 6. Governance actually gates
-- [ ] With no `~/.compliance-aiops/rules.yaml`, a high/critical operation is
-      **refused** unless `COMPLIANCE_AUDIT_APPROVED_BY` names an approver
-      (secure-by-default).
+### 6. Audit is unbypassable
+- [ ] Run a bundle op over MCP and the same op over the CLI; confirm **both**
+      land a row in `audit.db`, and that `COMPLIANCE_AUDIT_APPROVED_BY` /
+      `COMPLIANCE_AUDIT_RATIONALE`, when set, appear on the row (recorded, never
+      required — the skill authorizes nothing).
 - [ ] This tool's own operations are audited to
       `~/.compliance-aiops/audit.db` — i.e. the evidence tool is itself
       auditable, and a later bundle can include its own activity.

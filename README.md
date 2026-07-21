@@ -43,45 +43,24 @@ easiest-to-self-test tool in the line — fully offline and deterministic.
   governance-harness `AuditEngine`, a golden reproducible `chainHead` is
   asserted, and tamper tests confirm detection. No live infrastructure needed.
 
-## Security: read-only mode
+## What this tool does, and does not, decide
 
-This tool is meant to be handed to an AI agent, so its safety story is enforced
-by the server rather than requested in a prompt:
+It reads your audit trails and writes evidence bundles — and records every
+operation. It does **not** decide whether producing or signing a bundle is
+allowed: that is the agent's judgement, or the filesystem permissions of the
+account it runs as. The source `audit.db` files are opened strictly read-only
+regardless, and the only thing ever written is a bundle under
+`~/.compliance-aiops/bundles/`.
 
-```bash
-export COMPLIANCE_READ_ONLY=1
-```
-
-With that set, the **4 write tools are never registered**. An MCP client
-lists **14 tools instead of 18** — the writes are not hidden, not
-gated behind a flag, and not merely refused when called. They are absent from
-the session. A model cannot invoke a tool it was never offered, and cannot be
-argued into one.
-
-That distinction is the whole point. A tool that exists but refuses still invites
-retry loops and "I'll describe the call instead" behaviour from smaller models,
-and it leaves a reviewer trusting a promise. An absent tool is a fact you can
-check: connect, list the tools, and see that the writes are not there.
-
-Enforcement is two layers deep, so the switch cannot be sidestepped by changing
-entry point:
-
-| Layer | What it does | Covers |
-|---|---|---|
-| `@governed_tool` harness | refuses every non-read operation outright | MCP, CLI, and in-process callers |
-| MCP registration | write tools are removed from `list_tools()` | anything speaking MCP |
-
-Read operations are unaffected, and every call is still audited to
+So there is no read-only switch, no policy file, no approval gate to configure.
+The one thing the tool guarantees is that nothing is silent: **every call, over
+MCP and over the CLI alike, lands an audit row** in
 `~/.compliance-aiops/audit.db`.
 
-> The read/write split is derived from each tool's declared `risk_level`, and a
-> test asserts that this never disagrees with the `[READ]`/`[WRITE]` tag in the
-> tool's own documentation — so a write can't quietly present itself as a read.
-
-Running a smaller / local model? See
-[agent-guardrails.md](skills/compliance-aiops/references/agent-guardrails.md) — it lists
-the guardrails this tool now enforces for you (so you don't spend prompt budget
-restating them) and gives a ready-made system prompt for what's left.
+> Each tool declares a `risk_level`, kept in agreement with its `[READ]`/`[WRITE]`
+> documentation tag by a test, and carried into the audit row as a descriptive
+> tier — so a reviewer can see at a glance what a row was. It is a label, not a
+> gate.
 
 ## Tools (16 MCP tools)
 

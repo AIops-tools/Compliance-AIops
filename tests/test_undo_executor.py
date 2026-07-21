@@ -126,6 +126,26 @@ def test_cli_undo_apply_dry_run_renders(gov_home):
 
 
 @pytest.mark.unit
+def test_cli_undo_apply_dry_run_of_an_unknown_id_is_refused_nonzero(gov_home):
+    """A preview that cannot resolve its inverse must say so and exit non-zero.
+
+    ``undo apply --dry-run`` was already routed through the governed twin, so
+    the guard ran — but its refusal was dropped on the floor: the banner
+    rendered ``inverse: ?`` and exited 0. A green preview for an undo that can
+    never run is the failure mode a weak model reads as transient and retries.
+    """
+    from typer.testing import CliRunner
+
+    from compliance_aiops.cli import app
+
+    result = CliRunner().invoke(app, ["undo", "apply", "deadbeef", "--dry-run"])
+    assert result.exit_code == 1
+    assert "DRY-RUN" not in result.output
+    assert "Unknown undo id" in result.output
+    assert _CALLS == []
+
+
+@pytest.mark.unit
 def test_undo_apply_audits_both_wrapper_and_inverse(gov_home):
     uid = _record()
     gov.undo_apply(undo_id=uid)

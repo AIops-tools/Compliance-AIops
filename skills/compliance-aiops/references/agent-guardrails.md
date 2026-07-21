@@ -12,17 +12,32 @@ better results with a short system prompt. This page gives you one, and — more
 importantly — tells you which guardrails you **no longer need to write**, because
 the tool now enforces them itself.
 
-## What the tool now enforces — do not waste prompt budget on these
+## Authorization is not this tool's job — decide it where it belongs
+
+Whether a bundle should be produced or signed is your decision, or the account's.
+The tool does not gate it — there is no read-only switch and no approval prompt
+to configure. The two right places to control it:
+
+- **The account it runs as.** The tool only ever writes under
+  `~/.compliance-aiops/`, and opens every source `audit.db` strictly read-only —
+  so ordinary filesystem permissions bound what it can do. A write then fails at
+  the OS, which is the only place the permission actually lives.
+- **Your agent's system prompt.** If you want a query-only session, tell the
+  model not to call the bundle-writing tools (they are clearly tagged `[WRITE]`).
+
+What the tool *does* guarantee is that you can always see what happened:
+
+## What the tool enforces — do not waste prompt budget on these
 
 | You might be tempted to prompt | Why you don't need to |
 |---|---|
 | "Never modify the audit trail" | The tool has no capability to write to any source `audit.db` — it opens them read-only. Nothing in the tool surface can alter the evidence it reports on. |
-| "Produce no files, just answer" | Set `COMPLIANCE_READ_ONLY=1`. The tools that put bytes on disk — `generate_evidence_bundle`, `export_bundle`, `sign_bundle` — are then **not registered at all**, so the model cannot call one even if it tries. The `@governed_tool` harness independently refuses them, so the CLI is covered too. |
+| "Don't get stuck retrying" | The runaway guard trips a circuit breaker if the same call is hammered in a tight loop — a stuck agent is stopped rather than left to burn calls and time. |
 | "Don't invent an approver or a reason" | A field the audit row did not record comes back as `null`, never as `""`. "No approver was recorded" and "the approver field was blank" stay distinguishable — which is exactly the distinction a change-approval finding turns on. |
 | "Tell me if you only saw part of the trail" | Every report carries `scanLimit` and `scanTruncated`, and every capped list carries `returned` / `limit` / `truncated`. Truncation is measured — one row past the cap is fetched — never inferred from a count landing on a round number. |
 | "Check the evidence hasn't been tampered with" | `verify_source_chain` hash-chains a source's current events and reports row-id gaps; `verify_bundle` re-derives a sealed bundle's chain and reports the first broken link plus signature validity. You do not need to ask the model to reason about integrity — ask it to run the check. |
 | "Be honest about what an audit log can prove" | Every control carries a `strength` and a `caveat`, and gap findings carry the design-vs-operating note. Coverage is only claimed where the trail actually contains the evidence. |
-| "Log what you did" | Every call is audited to `~/.compliance-aiops/audit.db` regardless of what the model says it did. |
+| "Log everything you do, over both MCP and the CLI" | Every call is audited to `~/.compliance-aiops/audit.db` regardless of what the model says it did — and the CLI writes the same row the MCP path does, so there is no unaudited entry point. |
 
 ## What still needs a prompt
 
@@ -75,17 +90,18 @@ SCOPE
 
 ## Recommended setup for a local model
 
+Keep the agent query-only until you trust the setup — the tool already opens
+every source trail read-only, and the only thing it can write is a bundle under
+`~/.compliance-aiops/`:
+
 ```bash
-# Answers only, no artifacts on disk — this is enforced, not advisory.
-export COMPLIANCE_READ_ONLY=1
 compliance-aiops doctor
 ```
 
-Then, when you want the agent to seal evidence bundles, unset it and set an
-approver so the higher tiers have an accountable name on them:
+Optionally annotate the audit trail with who is operating and why — recorded on
+every row, never required:
 
 ```bash
-unset COMPLIANCE_READ_ONLY
 export COMPLIANCE_AUDIT_APPROVED_BY="your.name@example.com"
 export COMPLIANCE_AUDIT_RATIONALE="Q3 SOC2 evidence collection"
 ```

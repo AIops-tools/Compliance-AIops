@@ -16,6 +16,7 @@ import typer
 from typer.testing import CliRunner
 
 import compliance_aiops.config as config_mod
+import compliance_aiops.governance.audit as audit_mod
 import compliance_aiops.secretstore as ss
 
 pytestmark = pytest.mark.unit
@@ -53,6 +54,14 @@ def cli_home(tmp_path, monkeypatch):
     db = _make_audit_db(tmp_path / "audit.db")
     bundle_dir = tmp_path / "bundles"
     config_file = tmp_path / "config.yaml"
+    # Isolate the tool's OWN governance home (its audit.db of actions taken) to a
+    # separate dir so a CLI seal routed through the governed twin audits here, not
+    # into the developer's real ~/.compliance-aiops, and does not collide with the
+    # synthetic audit SOURCE db above.
+    monkeypatch.setenv("COMPLIANCE_AIOPS_HOME", str(tmp_path / "gov_home"))
+    # The audit-engine singleton caches its db path on first use, so reset it
+    # after pointing HOME at tmp_path (another test may have built it already).
+    audit_mod.reset_engine()
     config_file.write_text(
         "organization: Acme Corp\n"
         f"bundle_dir: {bundle_dir}\n"
@@ -129,6 +138,22 @@ def test_bundle_generate_list_verify_export_roundtrip(cli_home):
     exp = runner.invoke(_app(), ["bundle", "export", path, "--format", "markdown"])
     assert exp.exit_code == 0, exp.output
     assert "markdown" in exp.output
+
+
+def test_bundle_generate_via_cli_lands_an_audit_row(cli_home):
+    """The compliance tool seals evidence from every OTHER tool's audit DB — its
+    own primary write must not be the one that leaves no row. The CLI seal now
+    routes through the governed twin, so it audits like the MCP path."""
+    import sqlite3
+
+    tmp_path, _, _ = cli_home
+    gen = runner.invoke(_app(), ["bundle", "generate", "soc2"])
+    assert gen.exit_code == 0, gen.output
+
+    gov_db = tmp_path / "gov_home" / "audit.db"
+    assert gov_db.exists(), "the CLI seal left no governance audit.db"
+    tools = [r[0] for r in sqlite3.connect(gov_db).execute("SELECT tool FROM audit_log")]
+    assert "generate_evidence_bundle" in tools
 
 
 def test_bundle_generate_with_period(cli_home):

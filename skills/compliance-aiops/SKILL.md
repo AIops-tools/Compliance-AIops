@@ -106,8 +106,6 @@ other AIops-tools.
 
 ## Common Workflows
 
-> **Secure by default (v0.2.0+)**: with no `~/.compliance-aiops/rules.yaml`, high/critical operations are denied unless `COMPLIANCE_AUDIT_APPROVED_BY` names an approver (set `COMPLIANCE_AUDIT_RATIONALE` too). `compliance-aiops init` seeds a starter rules.yaml; an operator-authored rules file is honoured as-is.
-
 ### 1. "The SOC 2 auditor wants Q3 change-approval evidence by Friday"
 
 1. `compliance-aiops doctor` → confirm the source audit trails are discoverable
@@ -194,11 +192,14 @@ This tool ships **no scheduler**; it emits a cron line for you to install.
 
 ## Governance & Safety
 
-- Every tool call is audited to `~/.compliance-aiops/audit.db` (relocatable via
-  `COMPLIANCE_AIOPS_HOME`).
-- The source audit trails are opened **read-only**; the tool never mutates them.
-  The only files written are bundles under `~/.compliance-aiops/bundles/`.
-- **Secure by default (v0.2.0+)**: with no `~/.compliance-aiops/rules.yaml`, high/critical operations are denied unless `COMPLIANCE_AUDIT_APPROVED_BY` names an approver (set `COMPLIANCE_AUDIT_RATIONALE` too). `compliance-aiops init` seeds a starter rules.yaml; an operator-authored rules file is honoured as-is.
+The skill reads audit trails and writes evidence bundles and records what it
+does; it does **not** decide whether producing or signing a bundle is permitted.
+That is your agent's judgement, or the filesystem permissions of the account it
+runs as. There is no read-only switch, policy file, or approval gate.
+
+- **Audit is the guarantee, and it is not bypassable.** Every operation — MCP and CLI alike — is logged to `~/.compliance-aiops/audit.db` (relocatable via `COMPLIANCE_AIOPS_HOME`): params, result, status, duration, and the risk tier. The CLI writes the same row the MCP path does.
+- The source audit trails are opened **read-only**; the tool never mutates them. The only files written are bundles under `~/.compliance-aiops/bundles/`.
+- `COMPLIANCE_AUDIT_APPROVED_BY` / `COMPLIANCE_AUDIT_RATIONALE` are optional annotations recorded on the audit row (who/why); they are never required and never block.
 - **Tamper-EVIDENT, not tamper-PROOF** — the source `audit.db` remains the system
   of record.
 
