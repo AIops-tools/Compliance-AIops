@@ -80,6 +80,7 @@ MCP and over the CLI alike, lands an audit row** in
 | `verify_source_chain` | Chain head + row-id gap detection for one source |
 | `verify_bundle` | Verify a sealed bundle: chain + seal head + optional signature |
 | `list_bundles` | Bundles under `~/.compliance-aiops/bundles/` |
+| `oscal_assessment_results` | A sealed bundle as a NIST **OSCAL 1.2.3** Assessment Results document, inline, with its limitations named |
 | `bundle_schedule_hint` | Ready-to-paste cron line + non-interactive command for periodic sealing (writes nothing) |
 
 ### Write / artifact (3 — no external mutation)
@@ -87,10 +88,10 @@ MCP and over the CLI alike, lands an audit row** in
 | Tool | Risk | Purpose |
 |------|:---:|---------|
 | `generate_evidence_bundle` | low | One call: coverage + approval trail + exceptions + sealed records → a bundle `.json` |
-| `export_bundle` | low | Render a bundle to markdown / csv / json |
+| `export_bundle` | low | Render a bundle to markdown / csv / json / **oscal** |
 | `sign_bundle` | medium | HMAC over the seal using the stored signing key |
 
-The CLI exposes a convenience subset; the full 18-tool surface is available over MCP.
+The CLI exposes a convenience subset; the full 19-tool surface is available over MCP.
 
 ## Frameworks & controls
 

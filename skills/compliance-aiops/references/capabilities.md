@@ -1,6 +1,6 @@
 # compliance-aiops capabilities
 
-> Evidence, not certification. 18 MCP tools (13 read, 3 write, 2 undo). Data
+> Evidence, not certification. 19 MCP tools (14 read, 3 write, 2 undo). Data
 > source: the local `audit_log` trails governed AIops tools write, discovered via
 > `~/.*-aiops/audit.db` and read **read-only**. No external API, no network, no
 > platform credentials. `since` / `until` accept ISO-8601 timestamps.
@@ -38,6 +38,7 @@
 | `verify_source_chain` | `source`, `since?`, `until?` | chain head + row-id gap detection (flags deletions) for one source |
 | `verify_bundle` | `bundle_path` | verifies chain + seal head + optional signature; `ok` + any mismatch detail |
 | `list_bundles` | — | bundles under `~/.compliance-aiops/bundles/` |
+| `oscal_assessment_results` | `bundle_path` | the bundle as a NIST **OSCAL 1.2.3** Assessment Results document, returned inline with a `summary` (satisfied / not-satisfied / **satisfiedOnPartialEvidence** / scanTruncated) and an explicit `limitations` list. Deterministic: v5 UUIDs derived from the chain head, so re-export is byte-identical |
 | `bundle_schedule_hint` | `framework`, `cron="0 2 * * 1"`, `period="7d"`, `sign=False` | ready-to-paste 5-field cron line + non-interactive command for periodic sealing; **writes nothing, no daemon** |
 
 ## Write / artifact tools (3 — no external mutation)
@@ -45,7 +46,7 @@
 | Tool | Risk | Inputs | Returns / effect |
 |------|:---:|--------|------------------|
 | `generate_evidence_bundle` | **medium** | `framework`, `period_start?`, `period_end?`, `out_path?`, `sign=False`, `period?` (relative window e.g. `7d`) | one call: coverage + approval trail + exceptions + sealed records → a bundle `.json` under `~/.compliance-aiops/bundles/`; returns path + `chainHead` |
-| `export_bundle` | **medium** | `bundle_path`, `fmt="markdown"` (`markdown`\|`csv`\|`json`), `out_path?` | renders a bundle to the chosen format |
+| `export_bundle` | **medium** | `bundle_path`, `fmt="markdown"` (`markdown`\|`csv`\|`json`\|`oscal`), `out_path?` | renders a bundle to the chosen format; `oscal` writes `<bundle>.oscal.json` |
 | `sign_bundle` | **medium** | `bundle_path` | adds an HMAC signature over the seal using the stored signing key |
 
 ## Integrity model

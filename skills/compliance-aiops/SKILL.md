@@ -2,7 +2,7 @@
 name: compliance-aiops
 slug: compliance-aiops
 displayName: "Compliance AIops"
-summary: "Compliance evidence from AIops audit trails: HIPAA/PCI/SOC2/GDPR, hash-chain-sealed, 18 tools."
+summary: "Compliance evidence from AIops audit trails: HIPAA/PCI/SOC2/GDPR, OSCAL export, 19 tools."
 license: MIT
 homepage: https://github.com/AIops-tools/Compliance-AIops
 tags: [aiops, mcp, governance, compliance]
@@ -33,7 +33,7 @@ compatibility: >
 
 > **Disclaimer**: Community-maintained open-source project, **not affiliated with, endorsed by, or sponsored by any framework body or GRC vendor.** HIPAA, PCI-DSS, SOC 2, GDPR and OSCAL are referenced descriptively; trademarks belong to their owners. Source at [github.com/AIops-tools/Compliance-AIops](https://github.com/AIops-tools/Compliance-AIops) under the MIT license.
 
-Governed **compliance-evidence** tooling — **18 MCP tools**. It **reads the audit
+Governed **compliance-evidence** tooling — **19 MCP tools**. It **reads the audit
 trails your governed AIops agents already write** (`~/.<tool>-aiops/audit.db`, one
 shared `audit_log` schema, discovered via `~/.*-aiops/audit.db`) **read-only**,
 and turns that activity into **framework-mapped, hash-chain-sealed compliance
@@ -51,7 +51,7 @@ platform.
 | **Audit reads** | `list_audit_sources`, `query_audit_events`, `activity_timeline` | 3 | read |
 | **Framework mapping** | `list_frameworks`, `coverage_summary`, `control_evidence`, `gap_analysis` | 4 | read |
 | **Assurance reports** | `approval_report`, `exceptions_report` | 2 | read |
-| **Integrity** | `verify_source_chain`, `verify_bundle`, `list_bundles`, `bundle_schedule_hint` | 4 | read |
+| **Integrity** | `verify_source_chain`, `verify_bundle`, `list_bundles`, `bundle_schedule_hint`, `oscal_assessment_results` | 5 | read |
 | **Artifacts** | `generate_evidence_bundle` (low), `export_bundle` (low), `sign_bundle` (medium) | 3 | write (no external mutation) |
 | **Undo** | `undo_list`, `undo_apply` | 2 | undo |
 

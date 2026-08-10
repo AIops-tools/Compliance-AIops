@@ -21,7 +21,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from compliance_aiops import __version__, frameworks, hashchain
+from compliance_aiops import __version__, frameworks, hashchain, oscal
 from compliance_aiops.config import AppConfig
 from compliance_aiops.ops import controls as controls_ops
 from compliance_aiops.ops import reports as reports_ops
@@ -210,7 +210,7 @@ def sign_bundle(config: AppConfig, bundle_path: str) -> dict:
 
 
 def export_bundle(bundle_path: str, fmt: str = "markdown", out_path: str | None = None) -> dict:
-    """[WRITE][medium] Render a bundle to markdown / csv (json is the native form)."""
+    """[WRITE][medium] Render a bundle to markdown / csv / oscal (json is native)."""
     path = Path(bundle_path).expanduser()
     bundle = json.loads(path.read_text("utf-8"))
     fmt = fmt.lower()
@@ -220,8 +220,16 @@ def export_bundle(bundle_path: str, fmt: str = "markdown", out_path: str | None 
         text, ext = _to_csv(bundle), "csv"
     elif fmt == "json":
         text, ext = json.dumps(bundle, ensure_ascii=False, indent=2), "json"
+    elif fmt == "oscal":
+        # The evidence href is the bundle's own filename, so the exported document
+        # resolves next to the artifact it describes rather than embedding an
+        # absolute path from the machine that generated it.
+        document = oscal.to_assessment_results(bundle, bundle_href=path.name)
+        text, ext = json.dumps(document, ensure_ascii=False, indent=2), "oscal.json"
     else:
-        raise ValueError(f"Unknown format '{fmt}'. Choose markdown, csv, or json.")
+        raise ValueError(
+            f"Unknown format '{fmt}'. Choose markdown, csv, json, or oscal."
+        )
     if out_path:
         out = _confine_out(
             out_path,
@@ -233,6 +241,62 @@ def export_bundle(bundle_path: str, fmt: str = "markdown", out_path: str | None 
         out = path.with_suffix(f".{ext}")
     out.write_text(text, "utf-8")
     return {"action": "export_bundle", "format": fmt, "outPath": str(out)}
+
+
+def oscal_assessment_results(bundle_path: str) -> dict:
+    """[READ] A bundle rendered as an OSCAL Assessment Results document.
+
+    Returns the document itself rather than writing a file (use
+    ``export_bundle(fmt="oscal")`` for that), plus a ``summary`` carrying the two
+    numbers a consumer must not miss: how many "satisfied" findings rest on
+    PARTIAL evidence, and whether the source scan was truncated. Both are inside
+    the document too — in props, remarks and the result description — but a
+    caller that only reads the top of this payload still sees them.
+    """
+    path = Path(bundle_path).expanduser()
+    bundle = json.loads(path.read_text("utf-8"))
+    document = oscal.to_assessment_results(bundle, bundle_href=path.name)
+    problems = oscal.structural_check(document)
+    result = (document["assessment-results"]["results"] or [{}])[0]
+    findings = result.get("findings") or []
+    seal = bundle.get("seal") or {}
+
+    def _partial(finding: dict) -> bool:
+        return any(
+            p.get("name") == "evidence-strength" and p.get("value") == "partial"
+            for p in finding.get("props") or []
+        )
+
+    satisfied = [f for f in findings if f["target"]["status"]["state"] == "satisfied"]
+    out = {
+        "action": "oscal_assessment_results",
+        "bundlePath": str(path),
+        "oscalVersion": oscal.OSCAL_VERSION,
+        "summary": {
+            "framework": s(seal.get("framework"), 32),
+            "findings": len(findings),
+            "satisfied": len(satisfied),
+            "notSatisfied": len(findings) - len(satisfied),
+            "satisfiedOnPartialEvidence": sum(1 for f in satisfied if _partial(f)),
+            "scanTruncated": bool(seal.get("scanTruncated")),
+            "catalogResolved": False,
+            "chainHead": s(seal.get("chainHead"), 64),
+        },
+        "limitations": [
+            "Control ids are framework-native and are NOT resolved against an "
+            "imported OSCAL catalog — a consumer must map them.",
+            "OSCAL status has no 'partially satisfied' state; findings whose "
+            "evidence is PARTIAL are reported satisfied with evidence-strength "
+            "props and remarks saying what the audit trail does not prove.",
+            "import-ap points at a back-matter resource stating that no assessment "
+            "plan exists, rather than naming one that was never written.",
+        ],
+        "document": document,
+    }
+    if problems:
+        # A malformed document must not be returned as if it were fine.
+        out["structuralProblems"] = problems
+    return out
 
 
 def _to_markdown(bundle: dict) -> str:

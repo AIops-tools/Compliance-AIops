@@ -78,14 +78,46 @@ def sign_bundle(bundle_path: str) -> dict:
 @governed_tool(risk_level="medium")
 @tool_errors("dict")
 def export_bundle(bundle_path: str, fmt: str = "markdown", out_path: Optional[str] = None) -> dict:
-    """[WRITE][risk=medium] Render a bundle to markdown / csv / json.
+    """[WRITE][risk=medium] Render a bundle to markdown / csv / json / oscal.
+
+    "oscal" emits a NIST OSCAL 1.2.3 Assessment Results document (written as
+    <bundle>.oscal.json). Read oscal_assessment_results first if you need the
+    document inline plus its limitations — notably that control ids are not
+    resolved against an imported OSCAL catalog, and that OSCAL has no
+    "partially satisfied" state for the controls this tool evidences only
+    partially.
 
     Args:
         bundle_path: Path to a bundle .json.
-        fmt: "markdown", "csv", or "json".
+        fmt: "markdown", "csv", "json", or "oscal".
         out_path: Output path (default: alongside the bundle).
     """
     return ops.export_bundle(bundle_path, fmt=fmt, out_path=out_path)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def oscal_assessment_results(bundle_path: str) -> dict:
+    """[READ] A sealed bundle as an OSCAL 1.2.3 Assessment Results document.
+
+    Returns the document inline (writing a file is export_bundle's job) with a
+    summary and an explicit limitations list. Three things OSCAL cannot express
+    are handled rather than hidden: import-ap points at a back-matter resource
+    saying no assessment plan exists; control ids are framework-native and NOT
+    resolved against an imported catalog; and because status has only
+    satisfied/not-satisfied, controls this tool evidences only PARTIALLY are
+    reported satisfied with an evidence-strength prop plus remarks naming what
+    the audit trail does not prove — the count is in `summary` so it cannot be
+    skimmed past.
+
+    UUIDs are deterministic (v5, derived from the bundle's chain head), so
+    re-exporting the same bundle produces a byte-identical document.
+
+    Args:
+        bundle_path: Path to a bundle .json (from list_bundles).
+    """
+    return ops.oscal_assessment_results(bundle_path)
 
 
 @mcp.tool()

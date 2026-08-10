@@ -104,9 +104,34 @@ def bundle_list() -> None:
 @cli_errors
 def bundle_export(
     bundle_path: PathArg,
-    fmt: Annotated[str, typer.Option("--format", help="markdown / csv / json")] = "markdown",
+    fmt: Annotated[
+        str, typer.Option("--format", help="markdown / csv / json / oscal")
+    ] = "markdown",
 ) -> None:
-    """Render a bundle to markdown / csv / json."""
+    """Render a bundle to markdown / csv / json / OSCAL assessment results."""
     from mcp_server.tools import bundle as gov
 
     _emit(gov.export_bundle(bundle_path, fmt=fmt))
+
+
+@bundle_app.command("oscal")
+@cli_errors
+def bundle_oscal(bundle_path: PathArg) -> None:
+    """Print a bundle as an OSCAL 1.2.3 Assessment Results document (writes nothing).
+
+    Prints the summary and limitations first, then the document, so the two facts
+    a compliance consumer must not miss — how many satisfied findings rest on
+    PARTIAL evidence, and whether the source scan was truncated — are visible
+    without reading the whole payload. Use `bundle export --format oscal` to write
+    it to a file.
+    """
+    from mcp_server.tools import bundle as gov
+
+    result = gov.oscal_assessment_results(bundle_path)
+    if isinstance(result, dict) and result.get("error"):
+        _emit(result)
+        return
+    document = result.pop("document", None) if isinstance(result, dict) else None
+    console.print_json(json.dumps(result))
+    if document is not None:
+        console.print_json(json.dumps(document))

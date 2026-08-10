@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.10.0 — 2026-08-11
+
+### Added
+- **OSCAL export** — `oscal_assessment_results` (read, returns the document inline) and `export_bundle --format oscal` (writes `<bundle>.oscal.json`). A sealed evidence bundle becomes a **NIST OSCAL 1.2.3 Assessment Results** document: one observation and one finding per control, `reviewed-controls` naming the framework's full control set, and a `back-matter` resource binding the document to the bundle by chain head and per-source SHA-256.
+- **Deterministic by construction.** UUIDs are version 5, derived from the bundle's chain head, so re-exporting the same bundle produces a **byte-identical** document (verified end to end, not just unit-tested). Random v4 UUIDs would have thrown away the reproducibility the bundle's chain head exists to provide.
+
+### Honest about what OSCAL cannot say
+Three places where the model cannot carry what this tool knows, handled explicitly — an evidence artifact that overstates is worse than none:
+- **`import-ap` is required and there is no assessment plan.** This evidence is collected continuously by operations tooling, not produced by a planned assessment. `href` resolves to a back-matter resource that says exactly that, rather than naming a plan nobody wrote.
+- **`status.state` has only `satisfied` / `not-satisfied`** — no "partially satisfied". This tool's own model is more careful: an audit trail evidences that a control *operated*, not that it is correctly *designed*. Partial-strength controls are therefore reported `satisfied` **plus** an `evidence-strength=partial` prop, remarks naming what the trail does not prove, a count in the result's own description, and the same count as `satisfiedOnPartialEvidence` in the returned summary — four places, because a bare `satisfied` silently upgrades the claim.
+- **A truncated source scan leads the result description in prose** (`POPULATION INCOMPLETE: …`), not just a prop. A partial population presented as a complete assessment is the worst failure this tool could have.
+
+### Verified
+- Output validated against the **published NIST schema** (`oscal_assessment-results_schema.json`, OSCAL v1.2.3) for **all six frameworks** — hipaa, pci_dss, soc2, gdpr, iso27001, djcp_l3 — with synthetic bundles exercising both statuses, both evidence strengths, a truncated scan and a signed seal. `scripts/validate_oscal.py` reproduces it (schema file + `jsonschema` required; neither is a runtime dependency of a tool that must work offline).
+- Validating for real is what found the defects below; a hand-checked emitter would have shipped them.
+
+### Fixed (found by that validation, before release)
+- **Framework-native control ids are not legal OSCAL identifiers.** OSCAL's `TokenDatatype` requires a letter/underscore start and allows only letters, digits, `.`, `-`, `_` — so `164.312(b)` and `164.312(a)(1)` (parentheses) and `10.2` / `8.1.5.4` (digit-initial) are all invalid; only the SOC 2 (`CC6.1`) and ISO (`A.5.15`) styles happened to pass. `control-id` and `target-id` are now derived, framework-prefixed tokens (`hipaa_164.312-a-1`), with the native id preserved on `target.title`, a `framework-control-id` prop and the finding description — the join back to the framework must not be lost to a syntax rule.
+- **A prop name carried a colon** (`source-sha256:proxmox`), also not a legal token, and a source name is operator-chosen free text so no amount of naming discipline fixes it. The digest is now a `source-sha256` prop with the source name in `remarks`, where free text is allowed. A test asserts **every** prop name and control id in the whole document is a legal token, so a future addition cannot reintroduce the class.
+
 ## v0.9.0 — 2026-08-10
 
 ### Fixed

@@ -134,6 +134,54 @@ do not silently pass.
 - [ ] Remove the test bundles; confirm `compliance-aiops bundle list` is clean
       and no source trail was touched.
 
+## OSCAL export ✅ — validated against the published NIST schema (2026-08-11)
+
+The conformance claim is checked, not asserted. `scripts/validate_oscal.py`
+generates a document for **every** framework from a synthetic bundle that
+exercises both statuses, both evidence strengths, a truncated scan and a signed
+seal, and validates each against NIST's own
+`oscal_assessment-results_schema.json` from the **OSCAL v1.2.3** release:
+
+```
+curl -sLO https://github.com/usnistgov/OSCAL/releases/download/v1.2.3/oscal_assessment-results_schema.json
+python scripts/validate_oscal.py oscal_assessment-results_schema.json
+# ok hipaa / pci_dss / soc2 / gdpr / iso27001 / djcp_l3 — ALL VALID
+```
+
+Two mechanical adjustments are made to the schema first, both reported in the
+script's output so they cannot hide a failure: nested `$id` values of the form
+`#/definitions/…` are removed (they re-base `$ref` resolution and make every
+reference unresolvable under a standards-compliant 2020-12 resolver), and the
+single ECMA-262 `\p{L}`/`\p{N}` pattern is translated into equivalent Python
+character classes, since Python's `re` cannot compile Unicode property escapes.
+The translation is faithful — letters stay letters, digits stay digits — not a
+relaxation.
+
+**That first validation run found two real defects**, which is the point of
+running it: parenthesised and digit-initial control ids (`164.312(a)(1)`, `10.2`)
+are not legal OSCAL tokens, and neither is a prop name containing a colon
+(`source-sha256:proxmox`). Both are fixed, and a unit test now asserts that every
+prop name and control id in a generated document is a legal token.
+
+Also verified end to end against a real sealed bundle (synthetic audit DB →
+`bundle generate hipaa` → `bundle export --format oscal`):
+
+- the **written file** validates against the schema, not only the in-memory dict;
+- re-exporting the same bundle is **byte-identical** (v5 UUIDs derived from the
+  chain head);
+- `import-ap`'s fragment href resolves to a real back-matter resource;
+- derived ids keep their native counterpart reachable
+  (`hipaa_164.312-a-1` ← `164.312(a)(1)`).
+
+Not verified, and worth stating plainly:
+
+- **No third-party OSCAL consumer has ingested these documents.** Schema-valid is
+  not the same as "your GRC platform accepts it"; tools apply their own profiles
+  and required-extension rules on top.
+- **Control ids are not resolved against an imported OSCAL catalog.** Nothing here
+  fetched NIST 800-53 or any other catalog, so the identifiers are this tool's
+  framework-native ones (derived into legal tokens). A consumer must map them.
+
 ## Criteria to consider this tool verified
 
 Record `compliance-aiops` as verified **only when all of the following hold**:
