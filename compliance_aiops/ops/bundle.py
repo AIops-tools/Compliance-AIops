@@ -225,6 +225,17 @@ def export_bundle(bundle_path: str, fmt: str = "markdown", out_path: str | None 
         # resolves next to the artifact it describes rather than embedding an
         # absolute path from the machine that generated it.
         document = oscal.to_assessment_results(bundle, bundle_href=path.name)
+        # The read path checks this; the write path must too, or the malformed
+        # document is the one that reaches an auditor while the inspectable one
+        # was fine. Refusing beats writing a file that claims to be OSCAL.
+        problems = oscal.structural_check(document)
+        if problems:
+            raise ValueError(
+                "Refusing to write an OSCAL document that failed its structural "
+                f"check ({len(problems)} problem(s)): {'; '.join(problems[:3])}. "
+                "Inspect it with oscal_assessment_results, which returns the "
+                "document plus the full problem list without writing anything."
+            )
         text, ext = json.dumps(document, ensure_ascii=False, indent=2), "oscal.json"
     else:
         raise ValueError(

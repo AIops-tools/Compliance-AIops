@@ -132,6 +132,26 @@ def main() -> int:
 
     validator = jsonschema.Draft202012Validator(schema)
     total = 0
+
+    # A bundle whose optional fields are absent, because that is what produced
+    # empty prop values — and OSCAL strings must match ^\S(.*\S)?$.
+    sparse = synthetic_bundle(frameworks.FRAMEWORKS[0])
+    sparse["seal"]["genesisHash"] = ""
+    sparse["seal"]["sources"] = [{"name": "s", "dbSha256": None}]
+    sparse["seal"]["signature"] = None
+    sparse["seal"]["period"] = {}
+    for row in sparse["coverage"]["controls"]:
+        row["title"] = ""
+        row["caveat"] = None
+    sparse_doc = oscal.to_assessment_results(sparse, bundle_href="bundle.json")
+    sparse_errors = list(validator.iter_errors(sparse_doc))
+    total += len(sparse_errors)
+    print(f"  {'ok' if not sparse_errors else 'FAIL':4} {'sparse':10} "
+          f"absent optional fields, {len(sparse_errors)} schema error(s)")
+    for error in sparse_errors[:6]:
+        print("        path:", "/".join(str(p) for p in error.absolute_path))
+        print("         msg:", error.message[:200])
+
     for framework in frameworks.FRAMEWORKS:
         bundle = synthetic_bundle(framework)
         document = oscal.to_assessment_results(bundle, bundle_href="bundle.json")

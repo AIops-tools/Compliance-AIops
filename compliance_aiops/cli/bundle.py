@@ -135,3 +135,13 @@ def bundle_oscal(bundle_path: PathArg) -> None:
     console.print_json(json.dumps(result))
     if document is not None:
         console.print_json(json.dumps(document))
+    if isinstance(result, dict) and result.get("structuralProblems"):
+        # A malformed document printed with exit 0 is worse than an error: the
+        # shell redirect that captured it succeeded, so nothing downstream knows
+        # the file it just wrote does not conform.
+        console.print(
+            f"[red]Error:[/] the document failed its structural check "
+            f"({len(result['structuralProblems'])} problem(s)) — see "
+            f"structuralProblems above."
+        )
+        raise typer.Exit(1)

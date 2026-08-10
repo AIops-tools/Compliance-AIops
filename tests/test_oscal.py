@@ -12,6 +12,7 @@ containing parentheses are not legal OSCAL tokens.
 from __future__ import annotations
 
 import json
+import pathlib
 import re
 
 import pytest
@@ -270,10 +271,87 @@ def test_structural_check_on_a_non_document():
     assert oscal.structural_check({}) == ["missing 'assessment-results' root object"]
 
 
-def test_an_empty_framework_still_produces_a_valid_shell():
-    """No mapped controls must not mean a malformed document."""
-    document = _doc([])
-    assert oscal.structural_check(document) == []
-    result = document["assessment-results"]["results"][0]
-    assert result["findings"] == []
-    assert result["reviewed-controls"]["control-selections"][0]["description"]
+def test_a_framework_with_no_controls_is_refused_not_emitted():
+    """The earlier version of this test asserted an empty document was a "valid
+    shell" — structural_check said so and the test agreed, fossilising a wrong
+    belief. The published schema disagreed on four counts: control-selections must
+    name include-all or a non-empty include-controls, and observations/findings
+    are minItems 1. include-all would claim every control was in scope, the
+    opposite of the truth, so the emitter refuses instead."""
+    with pytest.raises(oscal.OscalNotExpressible, match="nothing to assess"):
+        _doc([])
+
+
+def test_props_with_an_empty_value_are_dropped_not_emitted_blank():
+    """OSCAL strings must match ^\\S(.*\\S)?$, so a prop carrying an absent
+    field invalidates the whole document. Absent beats blank: an omitted prop
+    says "not stated", an empty one asserts a blank value."""
+    bundle = _bundle([STRONG_COVERED])
+    bundle["seal"]["genesisHash"] = ""
+    document = oscal.to_assessment_results(bundle, bundle_href="b.json")
+    for node in _walk(document):
+        for prop in node.get("props") or []:
+            assert str(prop["value"]).strip(), f"empty prop value on {prop['name']}"
+    resource = document["assessment-results"]["back-matter"]["resources"][0]
+    assert not any(p["name"] == "genesis-hash" for p in resource["props"])
+
+
+def test_a_control_with_no_id_omits_the_target_title_rather_than_blanking_it():
+    document = _doc([{**STRONG_COVERED, "controlId": ""}])
+    target = document["assessment-results"]["results"][0]["findings"][0]["target"]
+    assert "title" not in target
+    assert TOKEN_RE.match(target["target-id"])
+
+
+# ─── the write path is as strict as the read path ──────────────────────────
+
+
+def test_export_refuses_to_write_a_document_that_fails_its_structural_check(
+    tmp_path, monkeypatch
+):
+    """The read path checked; the write path did not, so the malformed document
+    was the one that reached an auditor while the inspectable one was fine."""
+    from compliance_aiops.ops import bundle as bundle_ops
+
+    bundle_file = tmp_path / "hipaa.json"
+    bundle_file.write_text(json.dumps(_bundle([STRONG_COVERED])), "utf-8")
+
+    # Capture first: monkeypatching the module attribute means a _broken that
+    # calls the public helper would call itself.
+    original = bundle_ops.oscal.to_assessment_results
+
+    def _broken(*args, **kwargs):
+        document = original(*args, **kwargs)
+        document["assessment-results"].pop("import-ap")
+        return document
+
+    monkeypatch.setattr(bundle_ops.oscal, "to_assessment_results", _broken)
+    with pytest.raises(ValueError, match="failed its structural check"):
+        bundle_ops.export_bundle(str(bundle_file), fmt="oscal")
+    assert not (tmp_path / "hipaa.oscal.json").exists(), "a bad document was written"
+
+
+def test_export_writes_a_deterministic_document_on_the_happy_path(tmp_path):
+    from compliance_aiops.ops import bundle as bundle_ops
+
+    bundle_file = tmp_path / "hipaa.json"
+    bundle_file.write_text(json.dumps(_bundle([STRONG_COVERED, NOT_COVERED])), "utf-8")
+    first = bundle_ops.export_bundle(str(bundle_file), fmt="oscal")
+    written = pathlib.Path(first["outPath"])
+    assert written.name == "hipaa.oscal.json"
+    before = written.read_bytes()
+    bundle_ops.export_bundle(str(bundle_file), fmt="oscal")
+    assert written.read_bytes() == before
+    # the href resolves relative to the bundle, not to the generating machine
+    document = json.loads(before)
+    resource = document["assessment-results"]["back-matter"]["resources"][0]
+    assert resource["rlinks"][0]["href"] == "hipaa.json"
+
+
+def test_unknown_format_names_oscal_among_the_choices(tmp_path):
+    from compliance_aiops.ops import bundle as bundle_ops
+
+    bundle_file = tmp_path / "hipaa.json"
+    bundle_file.write_text(json.dumps(_bundle([STRONG_COVERED])), "utf-8")
+    with pytest.raises(ValueError, match="markdown, csv, json, or oscal"):
+        bundle_ops.export_bundle(str(bundle_file), fmt="xml")

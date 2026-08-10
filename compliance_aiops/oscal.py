@@ -102,8 +102,30 @@ def control_token(framework: Any, control_id: Any) -> str:
     return f"{prefix}_{body}" if body else prefix
 
 
+class OscalNotExpressible(ValueError):  # noqa: N818 — reads as a statement
+    """Refused: the bundle cannot be stated in OSCAL without misrepresenting it."""
+
+
 def _prop(name: str, value: Any) -> dict:
     return {"name": name, "value": str(value), "ns": PROP_NS}
+
+
+def _props(*pairs: tuple[str, Any]) -> list[dict]:
+    """Build a props list, dropping any whose value would serialise empty.
+
+    OSCAL string values must match ``^\\S(.*\\S)?$`` — non-empty and not
+    whitespace-padded — so a prop carrying an absent field (a bundle with no
+    genesis hash, a control with no title) makes the whole document invalid. The
+    schema catches it; nothing in a hand-written emitter would. Dropping the prop
+    is right rather than emitting ``""``: OSCAL props are optional, and an absent
+    prop says "not stated" while an empty one would assert a blank value.
+    """
+    out = []
+    for name, value in pairs:
+        rendered = str(value).strip()
+        if rendered:
+            out.append(_prop(name, rendered))
+    return out
 
 
 def _control_observation(
@@ -122,11 +144,11 @@ def _control_observation(
         ),
         "methods": ["EXAMINE"],
         "types": ["control-objective"],
-        "props": [
-            _prop("evidence-count", count),
-            _prop("evidence-strength", control.get("strength", "unknown")),
-            _prop("framework-control-id", control_id),
-        ],
+        "props": _props(
+            ("evidence-count", count),
+            ("evidence-strength", control.get("strength", "unknown")),
+            ("framework-control-id", control_id),
+        ),
         "relevant-evidence": [
             {
                 "href": evidence_href,
@@ -171,21 +193,22 @@ def _control_finding(
         "uuid": _uuid(bundle_id, "finding", control_id),
         "title": f"{control_id} — {control.get('title', '')}",
         "description": description,
-        "props": [
-            _prop("evidence-strength", strength),
-            _prop("evidence-count", control.get("evidenceCount", 0)),
+        "props": _props(
+            ("evidence-strength", strength),
+            ("evidence-count", control.get("evidenceCount", 0)),
             # The native id, because target-id below had to be derived to satisfy
             # OSCAL's token syntax. This is the join back to the framework.
-            _prop("framework-control-id", control_id),
-        ],
+            ("framework-control-id", control_id),
+        ),
         "target": {
             "type": "objective-id",
             "target-id": control_token(framework, control_id),
-            "title": control_id,
             "status": status,
         },
         "related-observations": [{"observation-uuid": observation_uuid}],
     }
+    if str(control_id).strip():
+        finding["target"]["title"] = control_id
     remarks: list[str] = []
     if partial:
         remarks.append(
@@ -219,12 +242,12 @@ def _back_matter(seal: dict, bundle_href: str, no_plan_uuid: str) -> dict:
             f"reproducible from the same sources and period."
         ),
         "rlinks": [{"href": bundle_href, "media-type": "application/json"}],
-        "props": [
-            _prop("chain-head", seal.get("chainHead", "")),
-            _prop("genesis-hash", seal.get("genesisHash", "")),
-            _prop("record-count", seal.get("recordCount", 0)),
-            _prop("bundle-signed", bool(seal.get("signature"))),
-        ],
+        "props": _props(
+            ("chain-head", seal.get("chainHead", "")),
+            ("genesis-hash", seal.get("genesisHash", "")),
+            ("record-count", seal.get("recordCount", 0)),
+            ("bundle-signed", bool(seal.get("signature"))),
+        ),
     }
     for source in seal.get("sources") or []:
         digest = source.get("dbSha256")
@@ -283,6 +306,20 @@ def to_assessment_results(
     start = period.get("start") or generated_at
     end = period.get("end") or generated_at
 
+    if not controls:
+        # OSCAL offers exactly two ways to state assessed controls: `include-all`
+        # or a non-empty `include-controls`. There is no way to say "nothing was
+        # in scope", and `include-all` would assert the opposite of the truth.
+        # Refusing beats emitting a document that misstates its own scope.
+        raise OscalNotExpressible(
+            f"No controls are mapped for framework "
+            f"'{seal.get('framework', '?')}', so there is nothing to assess. "
+            f"OSCAL's reviewed-controls must name either include-all or at least "
+            f"one control, and include-all would claim every control was in "
+            f"scope — the opposite of what happened. Generate the bundle for a "
+            f"framework this tool maps (list_frameworks)."
+        )
+
     observations = []
     findings = []
     for control in controls:
@@ -332,15 +369,15 @@ def to_assessment_results(
         "description": " ".join(caveats),
         "start": start,
         "end": end,
-        "props": [
-            _prop("chain-head", chain_head),
-            _prop("controls-covered", coverage.get("controlsCovered", 0)),
-            _prop("controls-total", coverage.get("controlsTotal", 0)),
-            _prop("events-scanned", coverage.get("eventsScanned", 0)),
-            _prop("scan-truncated", truncated),
-            _prop("partial-evidence-findings", len(partial_satisfied)),
-            _prop("catalog-resolved", False),
-        ],
+        "props": _props(
+            ("chain-head", chain_head),
+            ("controls-covered", coverage.get("controlsCovered", 0)),
+            ("controls-total", coverage.get("controlsTotal", 0)),
+            ("events-scanned", coverage.get("eventsScanned", 0)),
+            ("scan-truncated", truncated),
+            ("partial-evidence-findings", len(partial_satisfied)),
+            ("catalog-resolved", False),
+        ),
         "reviewed-controls": {
             "control-selections": [
                 {
@@ -353,8 +390,6 @@ def to_assessment_results(
                         for c in controls
                     ],
                 }
-                if controls
-                else {"description": "No controls mapped for this framework."}
             ]
         },
         "observations": observations,
@@ -372,7 +407,7 @@ def to_assessment_results(
                 "last-modified": generated_at,
                 "version": chain_head[:16] or "0",
                 "oscal-version": OSCAL_VERSION,
-                "props": [_prop("generator", generator)],
+                "props": _props(("generator", generator)),
                 "parties": [
                     {
                         "uuid": _uuid(bundle_id, "party", "organization"),
