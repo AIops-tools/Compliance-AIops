@@ -85,6 +85,30 @@ def is_approved(row: dict) -> bool:
     return bool(s(row.get("approved_by"), 96).strip())
 
 
+#: The harness records three outcomes for a write, and the distinction is load
+#: bearing for change-management reporting: ``ok`` means the change happened,
+#: ``unknown`` means the response was lost so it MAY have happened, and anything
+#: else (``error``, ``denied``, ``budget_exceeded``) means it did not.
+OK_STATUSES = ("ok",)
+UNDETERMINED_STATUSES = ("unknown",)
+
+
+def took_effect(row: dict) -> bool:
+    """Whether this op actually changed something (status ``ok``)."""
+    return s(row.get("status"), 32).lower() in OK_STATUSES
+
+
+def outcome_undetermined(row: dict) -> bool:
+    """Whether the op's outcome is unknown — it may or may not have taken effect.
+
+    The harness sets this when a write's response was lost, precisely because a
+    blind retry could apply the change twice. For reporting it must be counted
+    apart from both success and failure: calling it a change overstates, calling
+    it a non-change hides the one case an auditor most needs to see.
+    """
+    return s(row.get("status"), 32).lower() in UNDETERMINED_STATUSES
+
+
 #: Cap on rows scanned per report so a huge trail cannot OOM a summary.
 SCAN_LIMIT = 100_000
 

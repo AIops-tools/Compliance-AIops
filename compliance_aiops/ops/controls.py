@@ -29,7 +29,7 @@ def coverage_summary(reader: Any, framework: str, since: str | None = None,
     """[READ] Per-control coverage for one framework over a period."""
     controls = fw.controls_for(framework)
     events, scan_truncated = _events(reader, since, until)
-    unapproved = fw.unapproved_writes(events)
+    unapproved = fw.classify_unapproved_writes(events)
     rows: list[dict] = []
     covered_count = 0
     for c in controls:
@@ -55,18 +55,39 @@ def coverage_summary(reader: Any, framework: str, since: str | None = None,
         "eventsScanned": len(events),
         "scanLimit": SCAN_LIMIT,
         "scanTruncated": scan_truncated,
+        "unapprovedWrites": _unapproved_summary(unapproved),
         "controls": rows,
     }
 
 
-def _gap_reason(control: fw.Control, evidence: list[dict], unapproved: list[dict]) -> str:
-    """Return a human gap reason for a control, or '' if adequately covered."""
+def _gap_reason(control: fw.Control, evidence: list[dict], unapproved: dict) -> str:
+    """Return a human gap reason for a control, or '' if adequately covered.
+
+    A change-management gap needs an unapproved **change**, so the decision rests
+    on ops that took effect plus ops whose outcome is undetermined (a lost
+    response may well have landed). High-risk attempts that demonstrably did not
+    land are reported alongside — they evidence a process that does not require
+    approvers — but calling them changes would overstate: asked to produce them,
+    the trail shows they never happened.
+    """
     if not evidence:
         return "No matching evidence in the audit trail for this period."
-    if control.selector == "change" and unapproved:
-        return (f"{len(unapproved)} high-risk write op(s) recorded without an "
-                f"approver (approved_by empty) — change-approval gap.")
-    return ""
+    if control.selector != "change":
+        return ""
+    landed = len(unapproved.get("landed") or ())
+    undetermined = len(unapproved.get("undetermined") or ())
+    attempts = len(unapproved.get("didNotLand") or ())
+    if not (landed or undetermined):
+        return ""
+    parts = [f"{landed} high-risk write op(s) took effect without an approver "
+             f"(approved_by empty)"]
+    if undetermined:
+        parts.append(f"{undetermined} more whose outcome is undetermined and may "
+                     f"have taken effect")
+    if attempts:
+        parts.append(f"{attempts} further high-risk attempt(s) without an approver "
+                     f"did not land")
+    return "; ".join(parts) + " — change-approval gap."
 
 
 def control_evidence(reader: Any, framework: str, control_id: str,
@@ -102,7 +123,7 @@ def gap_analysis(reader: Any, framework: str, since: str | None = None,
     """[READ] Controls with no/weak evidence, each with an honest reason + caveat."""
     controls = fw.controls_for(framework)
     events, scan_truncated = _events(reader, since, until)
-    unapproved = fw.unapproved_writes(events)
+    unapproved = fw.classify_unapproved_writes(events)
     gaps: list[dict] = []
     for c in controls:
         evidence = fw.evidence_for(c, events)
@@ -125,14 +146,34 @@ def gap_analysis(reader: Any, framework: str, since: str | None = None,
         "findings": gaps,
         "scanLimit": SCAN_LIMIT,
         "scanTruncated": scan_truncated,
+        "unapprovedWrites": _unapproved_summary(unapproved),
         "note": "Audit trails evidence OPERATING effectiveness strongly and control "
                 "DESIGN/configuration only partially — pair partial controls with "
                 "config/policy evidence from your GRC system.",
     }
 
 
+def _unapproved_summary(unapproved: dict) -> dict:
+    """Counts of unapproved high-risk ops by outcome, for the payload top level.
+
+    Reported even when no control turns into a gap: attempts that did not land
+    are a real process signal, and burying them would be the mirror of counting
+    them as changes.
+    """
+    return {
+        "tookEffect": len(unapproved.get("landed") or ()),
+        "outcomeUndetermined": len(unapproved.get("undetermined") or ()),
+        "didNotLand": len(unapproved.get("didNotLand") or ()),
+        "note": (
+            "A change-management gap is judged on ops that took effect plus ops "
+            "whose outcome is undetermined; attempts that demonstrably did not "
+            "land changed nothing and are counted separately."
+        ),
+    }
+
+
 def _remediation(control: fw.Control, reason: str) -> str:
-    if "without an approver" in reason:
+    if "without an approver" in reason or "did not land" in reason:
         return ("Require an approver on high-risk ops: have operators pass "
                 "<TOOL>_AUDIT_APPROVED_BY on high/critical writes.")
     if "No matching evidence" in reason:

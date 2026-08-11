@@ -21,6 +21,8 @@ from compliance_aiops.ops._util import (
     is_enforced,
     is_high_risk,
     is_write,
+    outcome_undetermined,
+    took_effect,
 )
 
 # ── selectors: does an audit event count as evidence for a control class? ──
@@ -218,3 +220,33 @@ def evidence_for(control: Control, events: list[dict]) -> list[dict]:
 def unapproved_writes(events: list[dict]) -> list[dict]:
     """High-risk write ops lacking an approver — the CC8.1 / §312(c) gap signal."""
     return [e for e in events if is_high_risk(e) and is_write(e) and not is_approved(e)]
+
+
+def classify_unapproved_writes(events: list[dict]) -> dict:
+    """Split :func:`unapproved_writes` by whether the change actually happened.
+
+    Change-management controls are about **changes**, and an op that failed
+    changed nothing. Reporting a flat count as "write ops recorded without an
+    approver" therefore overstates: asked to produce the unapproved changes, the
+    trail would show that some never happened. Measured on a real cross-tool
+    trail, where two high-risk writes failed on a dropped connection and were
+    still counted as a change-approval gap.
+
+    The harness already records the distinction, so discarding it is a choice —
+    and the ``undetermined`` bucket is the one that matters most, because a lost
+    response means the change may well have landed. Non-landing attempts are
+    still returned: they evidence a process that does not require approvers, and
+    the caller reports them as attempts rather than as changes.
+    """
+    unapproved = unapproved_writes(events)
+    landed = [e for e in unapproved if took_effect(e)]
+    undetermined = [e for e in unapproved if outcome_undetermined(e)]
+    did_not_land = [
+        e for e in unapproved if not took_effect(e) and not outcome_undetermined(e)
+    ]
+    return {
+        "all": unapproved,
+        "landed": landed,
+        "undetermined": undetermined,
+        "didNotLand": did_not_land,
+    }
