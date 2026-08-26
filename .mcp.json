@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "compliance-aiops": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "compliance-aiops==0.10.0",
+        "compliance-aiops-mcp"
+      ]
+    }
+  }
+}
