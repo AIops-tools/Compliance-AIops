@@ -78,6 +78,13 @@ compliance-aiops init       # discover sibling ~/.*-aiops/audit.db, set org name
 compliance-aiops doctor     # which sibling audit DBs are present/readable
 ```
 
+Or as an OpenClaw plugin, which installs this skill and its MCP server together:
+
+```bash
+openclaw plugins install clawhub:@aiops-tools/compliance-aiops
+openclaw skills info compliance-aiops          # expect: Visible to model: yes
+```
+
 ## When to Use This Skill
 
 - Map AI-agent infra-ops activity to a framework's controls (`coverage_summary`)
