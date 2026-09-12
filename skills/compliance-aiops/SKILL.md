@@ -85,6 +85,8 @@ openclaw plugins install clawhub:@aiops-tools/compliance-aiops
 openclaw skills info compliance-aiops          # expect: Visible to model: yes
 ```
 
+Needs `uvx` on `PATH`: the MCP server is fetched with uv, pinned to this release.
+
 ## When to Use This Skill
 
 - Map AI-agent infra-ops activity to a framework's controls (`coverage_summary`)
