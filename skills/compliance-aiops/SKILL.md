@@ -17,7 +17,7 @@ installer:
 argument-hint: "[framework (hipaa|pci_dss|soc2|gdpr|iso27001|djcp_l3) or describe your evidence task]"
 allowed-tools:
   - Bash
-metadata: {"openclaw":{"requires":{"env":["COMPLIANCE_AIOPS_CONFIG"],"bins":["compliance-aiops"],"config":["~/.compliance-aiops/config.yaml"]},"optional":{"env":["COMPLIANCE_AIOPS_MASTER_PASSWORD"],"config":["~/.compliance-aiops/secrets.enc"]},"primaryEnv":"COMPLIANCE_AIOPS_CONFIG","homepage":"https://github.com/AIops-tools/Compliance-AIops","emoji":"📋","os":["macos","linux"]}}
+metadata: {"openclaw":{"requires":{"anyBins":["compliance-aiops","uvx"]},"optional":{"env":["COMPLIANCE_AIOPS_CONFIG","COMPLIANCE_AIOPS_MASTER_PASSWORD"]},"homepage":"https://github.com/AIops-tools/Compliance-AIops","emoji":"📋","os":["macos","linux"]}}
 compatibility: >
   Standalone compliance-evidence tooling. The governance harness (audit, policy, token/runaway budget, undo, risk-tiers) is bundled in the package — no external skill-family dependency.
   Data source: the LOCAL audit databases the other governed AIops tools already write, discovered by glob at ~/.*-aiops/audit.db (one shared audit_log schema). These are read READ-ONLY. There is NO external API, NO network, and NO platform credentials.

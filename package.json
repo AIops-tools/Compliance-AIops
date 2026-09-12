@@ -1,0 +1,20 @@
+{
+  "name": "@aiops-tools/compliance-aiops",
+  "version": "0.11.0",
+  "description": "Compliance evidence from AIops audit trails: HIPAA/PCI/SOC2/GDPR, OSCAL export, 19 tools.",
+  "private": true,
+  "license": "MIT",
+  "homepage": "https://github.com/AIops-tools/Compliance-AIops",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AIops-tools/Compliance-AIops.git"
+  },
+  "openclaw": {
+    "compat": {
+      "pluginApi": ">=2026.3.24-beta.2"
+    },
+    "build": {
+      "openclawVersion": "2026.3.24-beta.2"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "compliance-aiops",
+  "name": "Compliance AIops",
+  "description": "Compliance evidence from AIops audit trails: HIPAA/PCI/SOC2/GDPR, OSCAL export, 19 tools.",
+  "skills": [
+    "./skills"
+  ],
+  "mcpServers": {
+    "compliance-aiops": {
+      "transport": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "compliance-aiops==0.11.0",
+        "compliance-aiops-mcp"
+      ]
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
