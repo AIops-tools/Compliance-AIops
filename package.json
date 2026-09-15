@@ -1,6 +1,6 @@
 {
   "name": "@zw008/compliance-aiops",
-  "version": "0.11.2",
+  "version": "0.11.3",
   "description": "Compliance evidence from AIops audit trails: HIPAA/PCI/SOC2/GDPR, OSCAL export, 19 tools.",
   "private": true,
   "license": "MIT",
