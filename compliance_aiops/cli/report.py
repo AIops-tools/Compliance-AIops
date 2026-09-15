@@ -7,7 +7,7 @@ from typing import Annotated
 
 import typer
 
-from compliance_aiops.cli._common import TargetOption, cli_errors, console, get_reader
+from compliance_aiops.cli._common import TargetOption, audited, cli_errors, console, get_reader
 
 report_app = typer.Typer(
     name="report",
@@ -22,6 +22,7 @@ UntilOpt = Annotated[str | None, typer.Option("--until", help="ISO end timestamp
 
 @report_app.command("sources")
 @cli_errors
+@audited
 def report_sources(target: TargetOption = None) -> None:
     """List audit sources and their readability."""
     from compliance_aiops.ops import events as ops
@@ -32,6 +33,7 @@ def report_sources(target: TargetOption = None) -> None:
 
 @report_app.command("coverage")
 @cli_errors
+@audited
 def report_coverage(framework: FwArg, since: SinceOpt = None, until: UntilOpt = None) -> None:
     """Per-control coverage for a framework."""
     from compliance_aiops.ops import controls as ops
@@ -42,6 +44,7 @@ def report_coverage(framework: FwArg, since: SinceOpt = None, until: UntilOpt = 
 
 @report_app.command("gaps")
 @cli_errors
+@audited
 def report_gaps(framework: FwArg, since: SinceOpt = None, until: UntilOpt = None) -> None:
     """Controls with no/weak evidence + honest caveats."""
     from compliance_aiops.ops import controls as ops
@@ -52,6 +55,7 @@ def report_gaps(framework: FwArg, since: SinceOpt = None, until: UntilOpt = None
 
 @report_app.command("approvals")
 @cli_errors
+@audited
 def report_approvals(since: SinceOpt = None, until: UntilOpt = None) -> None:
     """High-risk write ops + who approved (the change-approval trail)."""
     from compliance_aiops.ops import reports as ops
@@ -62,6 +66,7 @@ def report_approvals(since: SinceOpt = None, until: UntilOpt = None) -> None:
 
 @report_app.command("exceptions")
 @cli_errors
+@audited
 def report_exceptions(since: SinceOpt = None, until: UntilOpt = None) -> None:
     """Denied / error / budget-exceeded ops (enforcement + anomaly evidence)."""
     from compliance_aiops.ops import reports as ops

@@ -7,7 +7,7 @@ from typing import Annotated
 
 import typer
 
-from compliance_aiops.cli._common import cli_errors, console, get_reader
+from compliance_aiops.cli._common import audited, cli_errors, console, get_reader
 
 
 def _emit(result: object) -> None:
@@ -60,6 +60,7 @@ def bundle_generate(
 
 @bundle_app.command("schedule")
 @cli_errors
+@audited
 def bundle_schedule(
     framework: FwArg,
     cron: Annotated[
@@ -83,6 +84,7 @@ def bundle_schedule(
 
 @bundle_app.command("verify")
 @cli_errors
+@audited
 def bundle_verify(bundle_path: PathArg) -> None:
     """Verify a sealed bundle's hash chain + seal head + signature."""
     from compliance_aiops.ops import integrity as ops
@@ -92,6 +94,7 @@ def bundle_verify(bundle_path: PathArg) -> None:
 
 @bundle_app.command("list")
 @cli_errors
+@audited
 def bundle_list() -> None:
     """List previously generated bundles + their chain head."""
     from compliance_aiops.ops import bundle as ops

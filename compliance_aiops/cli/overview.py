@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import json
 
-from compliance_aiops.cli._common import cli_errors, console, get_reader
+from compliance_aiops.cli._common import audited, cli_errors, console, get_reader
 
 
 @cli_errors
+@audited
 def overview_cmd() -> None:
     """One-shot posture: audit sources + per-framework covered/total control counts."""
     from compliance_aiops.ops import overview as ops
