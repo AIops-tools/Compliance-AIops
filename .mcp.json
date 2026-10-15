@@ -5,7 +5,7 @@
       "command": "uvx",
       "args": [
         "--from",
-        "compliance-aiops==0.13.0",
+        "compliance-aiops==0.14.0",
         "compliance-aiops-mcp"
       ]
     }

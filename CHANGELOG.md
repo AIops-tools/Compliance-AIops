@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.14.0 — 2026-10-15
 
 ### Fixed
 - `query_audit_events` with a `selector`: the selector was applied in Python to
