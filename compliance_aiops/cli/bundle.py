@@ -52,7 +52,7 @@ def bundle_generate(
     # Route through the governed twin so the CLI seal lands an audit row, just
     # like the MCP path — a compliance tool that seals evidence must not itself
     # write off the record.
-    from mcp_server.tools import bundle as gov
+    from compliance_aiops.mcp_server.tools import bundle as gov
 
     _emit(gov.generate_evidence_bundle(
         framework, period_start=since, period_end=until, sign=sign, period=period))
@@ -112,7 +112,7 @@ def bundle_export(
     ] = "markdown",
 ) -> None:
     """Render a bundle to markdown / csv / json / OSCAL assessment results."""
-    from mcp_server.tools import bundle as gov
+    from compliance_aiops.mcp_server.tools import bundle as gov
 
     _emit(gov.export_bundle(bundle_path, fmt=fmt))
 
@@ -128,7 +128,7 @@ def bundle_oscal(bundle_path: PathArg) -> None:
     without reading the whole payload. Use `bundle export --format oscal` to write
     it to a file.
     """
-    from mcp_server.tools import bundle as gov
+    from compliance_aiops.mcp_server.tools import bundle as gov
 
     result = gov.oscal_assessment_results(bundle_path)
     if isinstance(result, dict) and result.get("error"):

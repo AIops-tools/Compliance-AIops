@@ -85,9 +85,11 @@ def test_all_modules_import():
         "compliance_aiops.ops.bundle", "compliance_aiops.ops.overview",
         "compliance_aiops.cli", "compliance_aiops.cli._root", "compliance_aiops.cli.init",
         "compliance_aiops.cli.report", "compliance_aiops.cli.bundle",
-        "mcp_server.server", "mcp_server._shared",
-        "mcp_server.tools.events", "mcp_server.tools.controls", "mcp_server.tools.reports",
-        "mcp_server.tools.integrity", "mcp_server.tools.bundle",
+        "compliance_aiops.mcp_server.server", "compliance_aiops.mcp_server._shared",
+        "compliance_aiops.mcp_server.tools.events",
+        "compliance_aiops.mcp_server.tools.controls",
+        "compliance_aiops.mcp_server.tools.reports",
+        "compliance_aiops.mcp_server.tools.integrity", "compliance_aiops.mcp_server.tools.bundle",
     ):
         importlib.import_module(name)
 
@@ -135,8 +137,8 @@ def test_cli_leaf_help():
 
 @pytest.mark.unit
 def test_mcp_exposes_and_governs_all_tools():
-    from mcp_server import _shared
-    from mcp_server.server import mcp  # noqa: F401 — registers tools
+    from compliance_aiops.mcp_server import _shared
+    from compliance_aiops.mcp_server.server import mcp  # noqa: F401 — registers tools
 
     tools = _shared.mcp._tool_manager._tools
     assert EXPECTED_TOOLS <= set(tools), f"missing: {EXPECTED_TOOLS - set(tools)}"
@@ -147,7 +149,7 @@ def test_mcp_exposes_and_governs_all_tools():
 
 @pytest.mark.unit
 def test_risk_tiers():
-    from mcp_server.tools import bundle as b
+    from compliance_aiops.mcp_server.tools import bundle as b
 
     assert b.generate_evidence_bundle._risk_level == "medium"  # writes a file to disk
     assert b.sign_bundle._risk_level == "medium"  # touches the secret store
@@ -459,7 +461,7 @@ def test_risk_level_agrees_with_read_write_docstring_tag():
     16 such mislabels line-wide once, so it is kept even though read-only mode
     (its original motivation) is gone.
     """
-    from mcp_server import server
+    from compliance_aiops.mcp_server import server
 
     untagged, mismatched = [], []
     for name, tool in server.mcp._tool_manager._tools.items():

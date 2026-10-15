@@ -197,7 +197,7 @@ def test_control_evidence_sample_cap_announces_itself():
 
 @pytest.mark.unit
 def test_undo_list_envelope_measures_truncation(monkeypatch):
-    from mcp_server.tools import undo as undo_tools
+    from compliance_aiops.mcp_server.tools import undo as undo_tools
 
     rows = [
         {

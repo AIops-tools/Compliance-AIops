@@ -312,7 +312,7 @@ def test_dry_run_print_smoke():
 
 
 def test_mcp_command_invokes_server_main(monkeypatch):
-    import mcp_server.server as server
+    import compliance_aiops.mcp_server.server as server
 
     called: list[bool] = []
     monkeypatch.setattr(server, "main", lambda: called.append(True))

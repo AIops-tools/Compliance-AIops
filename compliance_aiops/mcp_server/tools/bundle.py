@@ -7,8 +7,8 @@ so they are low risk (sign_bundle is medium: it reads the encrypted signing key)
 from typing import Optional
 
 from compliance_aiops.governance import governed_tool
+from compliance_aiops.mcp_server._shared import _get_config, _get_reader, mcp, tool_errors
 from compliance_aiops.ops import bundle as ops
-from mcp_server._shared import _get_config, _get_reader, mcp, tool_errors
 
 
 @mcp.tool()

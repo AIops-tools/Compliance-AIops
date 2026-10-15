@@ -142,7 +142,7 @@ def test_real_write_tool_persists_audit_row(gov_home, monkeypatch):
     )
     _reset_singletons()  # the AuditEngine above must not pin the singleton
 
-    from mcp_server.tools import bundle as gov
+    from compliance_aiops.mcp_server.tools import bundle as gov
 
     monkeypatch.setattr(gov, "_get_reader", lambda: reader)
     monkeypatch.setattr(gov, "_get_config", lambda: cfg)

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from mcp_server import _shared
+from compliance_aiops.mcp_server import _shared
 
 pytestmark = pytest.mark.unit
 

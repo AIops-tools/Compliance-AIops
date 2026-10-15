@@ -3,8 +3,8 @@
 from typing import Optional
 
 from compliance_aiops.governance import governed_tool
+from compliance_aiops.mcp_server._shared import _get_reader, mcp, tool_errors
 from compliance_aiops.ops import controls as ops
-from mcp_server._shared import _get_reader, mcp, tool_errors
 
 
 @mcp.tool()
