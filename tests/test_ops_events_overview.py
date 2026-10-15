@@ -161,3 +161,40 @@ def test_posture_overview_degrades_to_errors_on_failing_subcall():
     assert out["frameworks"] == []  # every framework degraded
     assert len(out["errors"]) == len(fw.FRAMEWORKS)
     assert all("unreadable" in e for e in out["errors"])
+
+
+# ── selector filtering must see past the first limit+1 rows ──────────────────
+
+
+def _reads_then_writes(n_reads, n_writes):
+    # Insertion order = id order = what the reader returns first (newest id).
+    # Writes go in first (oldest), reads after: the recent window is all reads
+    # and every write sits behind it.
+    rows = [(f"2026-07-01T09:{i:02d}:00+00:00", "ceph-aiops", "pool_delete",
+             "ok", "high", "") for i in range(n_writes)]
+    rows += [(f"2026-07-03T{10 + i // 60:02d}:{i % 60:02d}:00+00:00", "k8s-aiops",
+              "pod_list", "ok", "low", "") for i in range(n_reads)]
+    return rows
+
+
+def test_selector_finds_matches_beyond_the_first_window(tmp_path):
+    from compliance_aiops.ops import events as ops
+
+    r = _reader(_make_audit_db(tmp_path / "a.db", _reads_then_writes(50, 5)))
+    out = ops.query_events(r, selector="change", limit=3)
+    assert out["returned"] == 3
+    assert out["truncated"] is True  # 5 matches exist, 3 returned
+
+
+def test_selector_reports_unknown_when_the_scan_itself_was_capped(tmp_path, monkeypatch):
+    from compliance_aiops.ops import _util
+    from compliance_aiops.ops import events as ops
+
+    monkeypatch.setattr(_util, "SCAN_LIMIT", 20)
+    monkeypatch.setattr(ops, "SCAN_LIMIT", 20, raising=False)
+    r = _reader(_make_audit_db(tmp_path / "b.db", _reads_then_writes(50, 5)))
+    out = ops.query_events(r, selector="change", limit=3)
+    # The 20-row scan never reached the writes; that is "unknown", not "none".
+    assert out["returned"] == 0
+    assert out["truncated"] is None
+    assert out["scanTruncated"] is True

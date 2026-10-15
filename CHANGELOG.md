@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- `query_audit_events` with a `selector`: the selector was applied in Python to
+  only the first `limit + 1` rows, so matches older than that window were never
+  seen and the result reported `truncated: false` — for example "3 changes"
+  while hundreds of older changes existed. The selector now runs over the
+  bounded report scan; `truncated` is `null` when that scan hit its cap before
+  filling `limit`, and the payload carries `scanTruncated`.
+
 ## v0.13.0 — 2026-10-15
 
 ### Fixed

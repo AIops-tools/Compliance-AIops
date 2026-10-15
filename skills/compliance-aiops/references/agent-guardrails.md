@@ -34,7 +34,7 @@ What the tool *does* guarantee is that you can always see what happened:
 | "Never modify the audit trail" | The tool has no capability to write to any source `audit.db` — it opens them read-only. Nothing in the tool surface can alter the evidence it reports on. |
 | "Don't get stuck retrying" | The runaway guard trips a circuit breaker if the same call is hammered in a tight loop — a stuck agent is stopped rather than left to burn calls and time. |
 | "Don't invent an approver or a reason" | A field the audit row did not record comes back as `null`, never as `""`. "No approver was recorded" and "the approver field was blank" stay distinguishable — which is exactly the distinction a change-approval finding turns on. |
-| "Tell me if you only saw part of the trail" | Every report carries `scanLimit` and `scanTruncated`, and every capped list carries `returned` / `limit` / `truncated`. Truncation is measured — one row past the cap is fetched — never inferred from a count landing on a round number. |
+| "Tell me if you only saw part of the trail" | Every report carries `scanLimit` and `scanTruncated`, and every capped list carries `returned` / `limit` / `truncated`. Truncation is measured — one row past the cap is fetched — never inferred from a count landing on a round number. With a `selector`, matching runs over the bounded report scan, and `truncated` is `null` when that scan hit its cap before filling the limit (more matches may exist). |
 | "Check the evidence hasn't been tampered with" | `verify_source_chain` hash-chains a source's current events and reports row-id gaps; `verify_bundle` re-derives a sealed bundle's chain and reports the first broken link plus signature validity. You do not need to ask the model to reason about integrity — ask it to run the check. |
 | "Be honest about what an audit log can prove" | Every control carries a `strength` and a `caveat`, and gap findings carry the design-vs-operating note. Coverage is only claimed where the trail actually contains the evidence. |
 | "Log everything you do, over both MCP and the CLI" | Every call is audited to `~/.compliance-aiops/audit.db` regardless of what the model says it did — and the CLI writes the same row the MCP path does, so there is no unaudited entry point. |
@@ -62,7 +62,8 @@ EVIDENCE INTEGRITY — the part that matters most here
   certified". This tool produces evidence about operations recorded in an audit
   trail. Certification is a judgement made by a qualified assessor over a much
   wider scope. Say what the evidence shows; never issue a verdict.
-- If a result has scanTruncated or truncated set to true, the population you saw
+- If a result has scanTruncated or truncated set to true — or truncated set to
+  null (completeness unknown) — the population you saw
   is a slice. Say so explicitly and do not compute or quote a coverage
   percentage, a total, or a "no violations found" statement from it.
 - Quote counts and control ids exactly as returned. Never round, extrapolate,

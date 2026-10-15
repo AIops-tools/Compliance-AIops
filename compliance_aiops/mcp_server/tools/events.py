@@ -40,9 +40,12 @@ def query_audit_events(
         limit: Max rows to return.
 
     Returns ``{"events": [...], "count": N, "returned": N, "limit": L,
-    "truncated": bool}``. When ``truncated`` is true more events matched than
-    were returned — narrow the filters or raise the limit. Never characterise
-    the trail (counts, "no violations found") from a truncated result.
+    "truncated": bool | null, "scanTruncated": bool}``. When ``truncated`` is
+    true more events matched than were returned — narrow the filters or raise
+    the limit. With a ``selector``, ``truncated`` is null when the bounded scan
+    hit its cap before filling ``limit``: more matches may exist. Never
+    characterise the trail (counts, "no violations found") from a truncated or
+    null-truncated result.
     """
     return ops.query_events(_get_reader(), source=source, skill=skill, tool=tool,
                             status=status, risk_level=risk_level, approved=approved,
