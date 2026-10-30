@@ -15,7 +15,7 @@ from compliance_aiops.governance import opt_str, sanitize
 # Statuses where the governance layer BLOCKED an action — evidence that policy /
 # approval / budget enforcement is actually operative (not merely logged).
 ENFORCEMENT_STATUSES = ("denied", "budget_exceeded")
-EXCEPTION_STATUSES = ("denied", "error", "budget_exceeded")
+EXCEPTION_STATUSES = ("denied", "error", "budget_exceeded", "pending", "unknown")
 # risk_level values that denote a state-changing (write) operation.
 WRITE_RISK_LEVELS = ("medium", "high", "critical")
 HIGH_RISK_LEVELS = ("high", "critical")
@@ -87,10 +87,11 @@ def is_approved(row: dict) -> bool:
 
 #: The harness records three outcomes for a write, and the distinction is load
 #: bearing for change-management reporting: ``ok`` means the change happened,
-#: ``unknown`` means the response was lost so it MAY have happened, and anything
-#: else (``error``, ``denied``, ``budget_exceeded``) means it did not.
+#: ``unknown`` means the response was lost and ``pending`` means the durable
+#: intent has no final outcome; either MAY have happened. A completed ``error``,
+#: ``denied`` or ``budget_exceeded`` means the change did not take effect.
 OK_STATUSES = ("ok",)
-UNDETERMINED_STATUSES = ("unknown",)
+UNDETERMINED_STATUSES = ("unknown", "pending")
 
 
 def took_effect(row: dict) -> bool:

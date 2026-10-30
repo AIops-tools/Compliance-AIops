@@ -2,6 +2,8 @@
 
 # Compliance AIops
 
+> **Audit availability:** Real writes require a committed `pending` audit row and stop before contacting the platform if storage is unavailable. Reads and previews may continue with a warning; new audit rows store outcome summaries rather than full responses.
+
 > **Disclaimer**: Community-maintained open-source project. **Not affiliated with, endorsed by, or sponsored by any framework body or GRC vendor.** HIPAA, PCI-DSS, SOC 2, GDPR and OSCAL are referenced descriptively; the frameworks and trademarks belong to their owners. MIT licensed.
 
 Governed **compliance-evidence** tooling for AI-agent infrastructure ops. It

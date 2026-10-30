@@ -101,6 +101,23 @@ def test_an_undetermined_outcome_counts_as_a_gap_and_says_so(reader_factory):
     assert summary["unapprovedWrites"]["outcomeUndetermined"] == 1
 
 
+def test_pending_write_is_undetermined_not_a_confirmed_failure(reader_factory):
+    reader = reader_factory([_op("pending")])
+    summary = ops.coverage_summary(reader, "soc2")
+    change = next(c for c in summary["controls"] if c["controlId"] == "CC8.1")
+    assert change["gap"] and "undetermined" in change["gap"]
+    assert summary["unapprovedWrites"]["outcomeUndetermined"] == 1
+    assert summary["unapprovedWrites"]["didNotLand"] == 0
+
+
+def test_pending_and_unknown_appear_in_exception_report(reader_factory):
+    from compliance_aiops.ops import reports
+
+    reader = reader_factory([_op("pending"), _op("unknown")])
+    report = reports.exceptions_report(reader)
+    assert report["byStatus"] == {"pending": 1, "unknown": 1}
+
+
 def test_gap_analysis_reports_the_same_summary(reader_factory):
     reader = reader_factory([_op("ok"), _op("unknown"), _op("error")])
     gaps = ops.gap_analysis(reader, "soc2")

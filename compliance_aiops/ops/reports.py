@@ -3,7 +3,8 @@
 ``approval_report`` is the who/what/when/why/approval artifact auditors most
 request for change-management (SOC2 CC8.1), least-privilege (PCI 7-8), and access
 control (HIPAA §164.312(a)). ``exceptions_report`` surfaces denied / errored /
-budget-tripped ops — the enforcement + anomaly evidence auditors *want* to see
+budget-tripped / outcome-undetermined ops — the enforcement and anomaly evidence
+auditors *want* to see
 (denials prove the control actually blocks, not rubber-stamps).
 """
 
@@ -49,7 +50,7 @@ def approval_report(reader: Any, since: str | None = None, until: str | None = N
 
 def exceptions_report(reader: Any, since: str | None = None,
                       until: str | None = None) -> dict:
-    """[READ] Denied / error / budget-exceeded ops (enforcement + anomaly evidence)."""
+    """[READ] Denied / error / budget-exceeded / undetermined ops."""
     events, scan_truncated = scan(reader, since=since, until=until)
     hits = [e for e in events if (e.get("status") or "").lower() in EXCEPTION_STATUSES]
     limit = 200

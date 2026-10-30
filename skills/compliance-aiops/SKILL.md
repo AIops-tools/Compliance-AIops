@@ -31,6 +31,8 @@ compatibility: >
 
 # Compliance AIops
 
+> **Audit availability:** Real writes require a durable audit intent. Reads and previews can continue if audit storage fails; check the warning and audit health before relying on their audit trail.
+
 > **Disclaimer**: Community-maintained open-source project, **not affiliated with, endorsed by, or sponsored by any framework body or GRC vendor.** HIPAA, PCI-DSS, SOC 2, GDPR and OSCAL are referenced descriptively; trademarks belong to their owners. Source at [github.com/AIops-tools/Compliance-AIops](https://github.com/AIops-tools/Compliance-AIops) under the MIT license.
 
 Governed **compliance-evidence** tooling — **19 MCP tools**. It **reads the audit
@@ -206,7 +208,7 @@ does; it does **not** decide whether producing or signing a bundle is permitted.
 That is your agent's judgement, or the filesystem permissions of the account it
 runs as. There is no read-only switch, policy file, or approval gate.
 
-- **Audit is the guarantee, and it is not bypassable.** Every operation — MCP and CLI alike — is logged to `~/.compliance-aiops/audit.db` (relocatable via `COMPLIANCE_AIOPS_HOME`): params, result, status, duration, and the risk tier. The CLI writes the same row the MCP path does.
+- **Audit is the guarantee, and it is not bypassable.** Every operation — MCP and CLI alike — is logged to `~/.compliance-aiops/audit.db` (relocatable via `COMPLIANCE_AIOPS_HOME`): params, outcome summary, status, duration, and the risk tier. The CLI writes the same row the MCP path does.
 - The source audit trails are opened **read-only**; the tool never mutates them. The only files written are bundles under `~/.compliance-aiops/bundles/`.
 - `COMPLIANCE_AUDIT_APPROVED_BY` / `COMPLIANCE_AUDIT_RATIONALE` are optional annotations recorded on the audit row (who/why); they are never required and never block.
 - **Tamper-EVIDENT, not tamper-PROOF** — the source `audit.db` remains the system

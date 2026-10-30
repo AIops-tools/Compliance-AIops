@@ -27,6 +27,10 @@ reproducible and auditable — not a subjective "seems fine".
 - Framework mapping produces the documented `strong` / `partial` evidence
   strength per control, and `gap_analysis` emits the caveat rather than
   overclaiming.
+- Synthetic `pending` and `unknown` audit outcomes remain visible in exception
+  reports and count as outcome-undetermined in change-approval coverage; neither
+  is treated as a confirmed failed write. This verifies reporting semantics,
+  not the outcome of any live upstream change.
 - Bundle export paths are **restricted** — a traversal attempt in an export path
   is refused.
 
@@ -211,3 +215,7 @@ underlying audit trail authoritative.
 - Always operate on **copies** of source trails when testing tamper detection.
 - The verification story for the whole product line is tracked centrally; add
   this tool's result there so the verification-debt ledger stays accurate.
+
+## Governance hardening — local synthetic verification (2026-10-30)
+
+The shared governance tests exercise a durable `pending` row before a write, refusal when the audit DB cannot persist that row, a visible pending row after finalization failure, explicit reconciliation to `unknown`, async/preview parity, result minimization, and metadata-only telemetry with `AIOPS_WORKFLOW_ID`. The tests use a temporary SQLite DB and synthetic tools; they do not claim a new live upstream write was performed. Existing audit rows and rotated archives from earlier releases are not automatically scrubbed. A pending intent from another process is never auto-reconciled. On POSIX the rotation/intent lock spans processes; on Windows it currently protects only threads in this process.
